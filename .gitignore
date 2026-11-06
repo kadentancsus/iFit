@@ -1,0 +1,42 @@
+# --- Frontend (Next.js in frontend/) ---
+node_modules/
+.next/
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+.pnp
+.pnp.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.vercel
+
+# Browser test output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# --- Backend (FastAPI in backend/) ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# --- Secrets: never commit real environment files ---
+.env
+.env.*
+!.env.example
+*.pem
+
+# --- OS / editors ---
+.DS_Store
