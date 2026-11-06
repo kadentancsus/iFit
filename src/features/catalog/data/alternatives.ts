@@ -65,7 +65,7 @@ const CURATED: Readonly<Record<string, CuratedOptions>> = {
     substitutions: [
       ['dumbbell-flat-bench-press', 'Same chest work if a bench and dumbbells are free.'],
       ['push-up', 'Same pressing pattern with no equipment to wait for.'],
-      ['barbell-bench-press', 'Same flat press with a bar, if a rack is free.'],
+      ['barbell-bench-press', 'Same flat press with a bar, if a rack is free. This one is harder.'],
     ],
   },
   'push-up': {

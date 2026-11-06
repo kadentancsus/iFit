@@ -180,7 +180,7 @@ insert into public.exercise_alternatives (source_exercise_id, target_exercise_id
   ('e1f17000-0000-4000-8000-000000000004'::uuid, 'e1f17000-0000-4000-8000-000000000007'::uuid, 'regression', 'Hands on a bench lighten the load, and you set the angle.', 1),
   ('e1f17000-0000-4000-8000-000000000005'::uuid, 'e1f17000-0000-4000-8000-000000000003'::uuid, 'substitution', 'Same chest work if a bench and dumbbells are free.', 0),
   ('e1f17000-0000-4000-8000-000000000005'::uuid, 'e1f17000-0000-4000-8000-000000000006'::uuid, 'substitution', 'Same pressing pattern with no equipment to wait for.', 1),
-  ('e1f17000-0000-4000-8000-000000000005'::uuid, 'e1f17000-0000-4000-8000-000000000001'::uuid, 'substitution', 'Same flat press with a bar, if a rack is free.', 2),
+  ('e1f17000-0000-4000-8000-000000000005'::uuid, 'e1f17000-0000-4000-8000-000000000001'::uuid, 'substitution', 'Same flat press with a bar, if a rack is free. This one is harder.', 2),
   ('e1f17000-0000-4000-8000-000000000006'::uuid, 'e1f17000-0000-4000-8000-000000000005'::uuid, 'substitution', 'Same pressing muscles with a load you can set exactly.', 0),
   ('e1f17000-0000-4000-8000-000000000006'::uuid, 'e1f17000-0000-4000-8000-000000000003'::uuid, 'substitution', 'Same pressing pattern with a load you choose.', 1),
   ('e1f17000-0000-4000-8000-000000000006'::uuid, 'e1f17000-0000-4000-8000-000000000007'::uuid, 'regression', 'Raising your hands lightens the share of bodyweight.', 0),
