@@ -1,0 +1,7 @@
+# Runtime dependencies for the iFit FastAPI backend. Versions are pinned so
+# every lane runs the same stack; do not upgrade independently.
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.3
+pydantic-settings==2.16.2
+supabase==2.34.1
