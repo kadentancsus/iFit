@@ -1,3 +1,8 @@
+/**
+ * Client-side copy of the planning rules, for instant form feedback only.
+ * The FastAPI backend (backend/app/features/planning/validators.py) is the
+ * authoritative check on every request; keep the two in step.
+ */
 import { findExerciseById } from '../catalog/queries';
 import {
   ROUTINE_LIMITS,
