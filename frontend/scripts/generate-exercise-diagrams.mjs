@@ -2,7 +2,7 @@
 /**
  * Generates the original exercise demonstrations in `public/exercises`.
  *
- *   node scripts/generate-exercise-diagrams.mjs
+ *   cd frontend && node scripts/generate-exercise-diagrams.mjs
  *
  * Each exercise is described by a start and end pose. Limbs are solved with
  * two-bone inverse kinematics on every frame, so proportions stay consistent
