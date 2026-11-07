@@ -1,0 +1,38 @@
+# Configuration for the Python backend's checks (backend/). Dependencies are
+# pinned in backend/requirements*.txt; this file only configures the tools.
+# Run from the repository root:
+#   python -m ruff check backend
+#   python -m mypy backend/app
+#   python -m pytest backend/tests   (configured in backend/pytest.ini)
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["backend"]
+extend-exclude = ["frontend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "S", "ASYNC", "RUF"]
+ignore = [
+  "S101",  # assert is fine in tests and for type narrowing
+  "E501",  # long lines are a formatting choice, not a defect
+  "UP046", # Generic[T] base classes are fine; no need for PEP 695 syntax
+  "UP047", # same for generic functions
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "backend"
+explicit_package_bases = true
+files = ["backend/app"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+# Settings reads aliased values from the environment, not __init__.
+warn_required_dynamic_aliases = false
