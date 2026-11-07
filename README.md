@@ -35,7 +35,7 @@ Native smartwatch support, QR equipment installations and social features are ou
 | Area | Technology |
 | --- | --- |
 | Runtime | Node.js LTS compatible with the pinned Next.js version |
-| Application | Next.js App Router, React and TypeScript |
+| Application | Next.js App Router, React and Python |
 | Styling | Tailwind CSS |
 | Backend operations | Next.js Server Actions; Route Handlers for necessary HTTP endpoints/auth callbacks |
 | Database | Supabase PostgreSQL |
