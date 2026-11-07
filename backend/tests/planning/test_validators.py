@@ -6,6 +6,7 @@ import math
 from typing import Any
 
 import pytest
+
 from app.features.planning import (
     SCHEDULE_STATUSES,
     ExerciseRef,
@@ -256,7 +257,7 @@ class TestIsLocalDate:
             "2026-1-6",
             "2026-11-06T00:00:00Z",
             "2026-11-06\n",
-            "２０２６-11-06",
+            "２０２６-11-06",  # noqa: RUF001  (full-width digits must be rejected)
             "",
             None,
             20261106,

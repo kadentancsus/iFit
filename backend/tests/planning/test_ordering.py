@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from app.features.planning import move_item, with_positions
 
 ITEMS = ["a", "b", "c", "d"]
