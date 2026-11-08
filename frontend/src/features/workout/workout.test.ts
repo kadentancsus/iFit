@@ -36,6 +36,16 @@ describe('workout input validation', () => {
 });
 
 describe('timestamp-based rest timer', () => {
+  for (const duration of [0, 1, 30, 90, 599, 600]) {
+    it.each([0, 0.001, 1, 29.9, 90, 600, 3600])(`recovers ${duration}s rest after %ss`, (elapsed) => {
+      const restored = validateRestState(JSON.parse(JSON.stringify(startRest(duration, NOW))));
+      expect(restored.error).toBeNull();
+      const later = NOW + elapsed * 1000;
+      const expected = Math.max(0, Math.ceil(duration - elapsed));
+      expect(remainingSeconds(restored.data!, later)).toBe(expected);
+      expect(remainingSeconds(pauseRest(restored.data!, later), later + 86400000)).toBe(expected);
+    });
+  }
   it('recovers from serialized state without restarting', () => {
     const restored = validateRestState(JSON.parse(JSON.stringify(startRest(90, NOW))));
     expect(restored.error).toBeNull();
