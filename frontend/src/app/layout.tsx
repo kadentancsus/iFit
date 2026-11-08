@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+
+import { AppNav, AppProfileLink } from "@/components/navigation/app-nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -30,17 +32,23 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to content
         </a>
-        <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
-          <div className="mx-auto flex h-14 w-full max-w-2xl items-center justify-between px-4">
+        {/* No backdrop-filter here: it would trap the fixed phone tab bar inside the header. */}
+        <header className="sticky top-0 z-40 border-b border-border bg-surface">
+          <div className="mx-auto flex h-14 w-full max-w-4xl items-center justify-between gap-4 px-4">
             <Link
               href="/"
               className="flex min-h-11 items-center text-lg font-bold tracking-tight text-brand"
             >
               iFit
             </Link>
+            <AppNav />
+            <AppProfileLink />
           </div>
         </header>
-        <main id="main" className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-6">
+        <main
+          id="main"
+          className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pt-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6"
+        >
           {children}
         </main>
       </body>
