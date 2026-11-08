@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 import type { Dashboard, Profile, WorkoutSummary } from '@/lib/contracts';
 
 import { identityApi } from './api';
@@ -118,7 +120,7 @@ describe('DashboardContent', () => {
   });
 
   it('shows the workout in progress in their time zone', () => {
-    expect(html).toContain('Pull day, started at 10:05 AM.');
+    expect(html).toContain('Pull day, started at 10:05 AM');
   });
 
   it("lists today's plan, progress and recent workouts in their unit and day", () => {
@@ -176,5 +178,30 @@ describe('identityApi', () => {
     expect(init?.method).toBe('PATCH');
     expect(init?.body).toBe('{"displayUnit":"kg"}');
     expect(init?.headers).toMatchObject({ Authorization: 'Bearer tok' });
+  });
+});
+
+describe('dashboard start and resume', () => {
+  const plan = DASHBOARD.todaysWorkouts[0]!;
+  const done = { ...plan, id: 'p2', routineTitle: 'Done already', status: 'completed' as const };
+  const orphan = { ...plan, id: 'p3', routineId: null, routineTitle: 'Old routine' };
+
+  it('offers Start on planned workouts only when nothing is running', () => {
+    const html = renderToStaticMarkup(
+      <DashboardContent
+        data={{ ...DASHBOARD, activeWorkout: null, todaysWorkouts: [plan, done, orphan] }}
+      />,
+    );
+    expect(html.match(/>Start</g)).toHaveLength(1);
+    expect(html).toContain('<span class="sr-only">: Legs</span>');
+    expect(html).toContain('Routine was deleted');
+    expect(html).not.toContain('Resume workout');
+  });
+
+  it('offers Resume, and no second Start, while a workout is running', () => {
+    const html = renderToStaticMarkup(<DashboardContent data={DASHBOARD} />);
+    expect(html).toMatch(/<a[^>]*href="\/workout\/w1"[^>]*>Resume workout<\/a>/);
+    expect(html).not.toContain('>Start<');
+    expect(html).toContain('Finish or resume your current workout before starting another.');
   });
 });
