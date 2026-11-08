@@ -71,6 +71,10 @@ select throws_ok($$select public.workout_log_set(current_setting('ifit.test.entr
   8, 'NaN'::numeric, 'weighted', 'dddddddd-2000-4000-8000-000000000002')$$, '23514', null, 'non-finite weight rejected');
 select throws_ok($$select public.workout_log_set(current_setting('ifit.test.entry')::uuid,
   8, null, 'bodyweight', 'dddddddd-2000-4000-8000-000000000002')$$, '22023', null, 'wrong equipment load mode rejected');
+select is((select count(*) from public.set_logs), 1::bigint, 'failed log transaction leaves no partial set');
+select throws_ok($$select public.workout_finish(current_setting('ifit.test.session')::uuid,
+  'dddddddd-2000-4000-8000-000000000001')$$, '22023', null, 'operation ID cannot be reused across operation kinds');
+select is((select status from public.workout_sessions), 'active', 'operation conflict cannot partially finish workout');
 select throws_ok($$update public.set_logs set reps = 9$$, '42501', null, 'direct set writes forbidden');
 
 select lives_ok($$select public.workout_save_rest(current_setting('ifit.test.session')::uuid, 'paused', null, 45)$$,
@@ -89,6 +93,8 @@ select set_config('ifit.test.alternative', (select a.target_exercise_id::text
 select throws_ok($$select public.workout_swap_exercise(current_setting('ifit.test.entry')::uuid,
   current_setting('ifit.test.alternative')::uuid, 'dddddddd-3000-4000-8000-000000000001',
   '{"targetSets":3,"targetReps":10,"restSeconds":90}')$$, '22023', null, 'stale client targets rejected');
+select is((select count(*) from public.session_exercises), 1::bigint, 'failed swap inserts no partial replacement');
+select ok((select not is_replaced from public.session_exercises), 'failed swap leaves original entry active');
 select lives_ok($$select public.workout_swap_exercise(current_setting('ifit.test.entry')::uuid,
   current_setting('ifit.test.alternative')::uuid, 'dddddddd-3000-4000-8000-000000000001',
   '{"targetSets":2,"targetReps":10,"restSeconds":90}')$$, 'swap preserves remaining targets');
