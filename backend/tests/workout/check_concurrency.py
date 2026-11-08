@@ -34,6 +34,7 @@ def check() -> None:
     def as_user(query: str) -> str:
         return sql(
             f"begin; set local role authenticated; set local request.jwt.claims = '{claims}';"
+            f"set local request.jwt.claim.sub = '{actor}';"
             f"{query}; commit;"
         )
 

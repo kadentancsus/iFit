@@ -25,14 +25,20 @@ select is((select count(*) from pg_class where relnamespace = 'public'::regnames
 
 set local role anon;
 set local request.jwt.claims = '{}';
+set local request.jwt.claim.sub = '';
+select ok(auth.uid() is null, 'anonymous fixture has no identity');
 select throws_ok($$select * from public.workout_sessions$$, '42501', null, 'anon cannot read workouts');
 select throws_ok($$select public.workout_start(null, null)$$, '42501', null, 'anon cannot call start');
 
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{}';
+set local request.jwt.claim.sub = '';
+select ok(auth.uid() is null, 'missing-identity fixture has no identity');
 select throws_ok($$select public.workout_start(null, null)$$, '42501', null, 'missing identity rejected');
 set local request.jwt.claims = '{"sub":"dddddddd-0000-4000-8000-000000000001","role":"authenticated"}';
+set local request.jwt.claim.sub = 'dddddddd-0000-4000-8000-000000000001';
+select is(auth.uid(), 'dddddddd-0000-4000-8000-000000000001'::uuid, 'fixture authenticates account A');
 select throws_ok($$select public.workout_lock_owner()$$, '42501', null, 'internal helper cannot be called directly');
 select throws_ok($$select * from public.workout_operations$$, '42501', null, 'operation ledger is private');
 select throws_ok($$insert into public.workout_sessions(owner_id) values (auth.uid())$$,
@@ -118,6 +124,8 @@ select lives_ok($$select public.workout_log_set((select id from public.session_e
 
 -- B cannot read or mutate A's session, entries, sets, or timers by direct IDs.
 set local request.jwt.claims = '{"sub":"eeeeeeee-0000-4000-8000-000000000001","role":"authenticated"}';
+set local request.jwt.claim.sub = 'eeeeeeee-0000-4000-8000-000000000001';
+select is(auth.uid(), 'eeeeeeee-0000-4000-8000-000000000001'::uuid, 'fixture switches to account B');
 select is((select count(*) from public.workout_sessions), 0::bigint, 'B cannot read A sessions');
 select is((select count(*) from public.session_exercises), 0::bigint, 'B cannot read A child entries');
 select is((select count(*) from public.set_logs), 0::bigint, 'B cannot read A child sets');
@@ -135,6 +143,8 @@ select lives_ok($$select public.workout_start('eeeeeeee-0000-4000-8000-000000000
 select is((select count(*) from public.workout_sessions), 1::bigint, 'B sees only own new session');
 
 set local request.jwt.claims = '{"sub":"dddddddd-0000-4000-8000-000000000001","role":"authenticated"}';
+set local request.jwt.claim.sub = 'dddddddd-0000-4000-8000-000000000001';
+select is(auth.uid(), 'dddddddd-0000-4000-8000-000000000001'::uuid, 'fixture switches back to account A');
 select set_config('ifit.test.set', (select id::text from public.set_logs
   where session_exercise_id = current_setting('ifit.test.entry')::uuid), true);
 select lives_ok($$select public.workout_finish(current_setting('ifit.test.session')::uuid,
@@ -161,12 +171,16 @@ select is((select weight_kg from public.set_logs where id = current_setting('ifi
   55::numeric, 'undo preserves corrected load');
 
 set local request.jwt.claims = '{"sub":"eeeeeeee-0000-4000-8000-000000000001","role":"authenticated"}';
+set local request.jwt.claim.sub = 'eeeeeeee-0000-4000-8000-000000000001';
+select is(auth.uid(), 'eeeeeeee-0000-4000-8000-000000000001'::uuid, 'correction isolation fixture authenticates B');
 select throws_ok($$select public.workout_update_set(current_setting('ifit.test.set')::uuid, 1, 0, 'weighted')$$,
   '22023', null, 'B cannot correct A set');
 select throws_ok($$select public.workout_delete_set(current_setting('ifit.test.set')::uuid)$$,
   'P0002', null, 'B cannot delete or undo A set');
 
 set local request.jwt.claims = '{"sub":"dddddddd-0000-4000-8000-000000000001","role":"authenticated"}';
+set local request.jwt.claim.sub = 'dddddddd-0000-4000-8000-000000000001';
+select is(auth.uid(), 'dddddddd-0000-4000-8000-000000000001'::uuid, 'history fixture authenticates A');
 update public.routines set title = 'Renamed workout' where id = 'dddddddd-0000-4000-8000-000000000002';
 update public.routine_exercises set target_reps = 5 where routine_id = 'dddddddd-0000-4000-8000-000000000002';
 select is((select routine_name_snapshot from public.workout_sessions), 'Original workout', 'routine rename cannot rewrite snapshot');
