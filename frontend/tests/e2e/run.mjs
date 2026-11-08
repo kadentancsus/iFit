@@ -1,6 +1,4 @@
-// Stage-1 lane entrypoint while shared package scripts remain integrator-owned.
-// From frontend: node tests/e2e/run.mjs [--smoke] [Playwright arguments...]
-// Stage-1 integration must pin @playwright/test 1.65.0 and wire test:e2e here.
+// From frontend: npm run test:e2e -- [--smoke] [Playwright arguments...]
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -11,7 +9,7 @@ let cli;
 try {
   cli = require.resolve('@playwright/test/cli');
 } catch {
-  console.error('Missing @playwright/test. Stage-1 integration must add the pinned 1.65.0 dependency and lockfile.');
+  console.error('Missing @playwright/test. Run npm ci in frontend first.');
   process.exit(1);
 }
 const args = process.argv.slice(2);

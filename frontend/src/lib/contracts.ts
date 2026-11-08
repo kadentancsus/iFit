@@ -272,7 +272,7 @@ export interface SwapExerciseInput {
   sessionExerciseId: string;
   replacementExerciseId: string;
   /** Sets still to do move to the replacement; logged sets stay put. */
-  remainingTargets: Targets;
+  remainingTargets: Omit<Targets, 'targetKg'>;
   operationId: string;
 }
 

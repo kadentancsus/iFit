@@ -43,6 +43,14 @@ class Targets(WorkoutModel):
     rest_seconds: RestSeconds
 
 
+class RemainingTargets(WorkoutModel):
+    """Swap confirmation never transfers the original equipment's load."""
+
+    target_sets: SetCount
+    target_reps: PositiveReps
+    rest_seconds: RestSeconds
+
+
 class StartWorkoutInput(WorkoutModel):
     routine_id: UUID
     schedule_id: UUID | None = None
@@ -75,6 +83,7 @@ class SetLog(SetValues):
     session_exercise_id: UUID
     operation_id: UUID
     ordinal: Annotated[int, Field(strict=True, ge=1)]
+    is_deleted: bool = False
     completed_at: AwareDatetime
     created_at: AwareDatetime
     updated_at: AwareDatetime
@@ -108,6 +117,7 @@ class SessionExercise(WorkoutModel):
     position: Annotated[int, Field(strict=True, ge=0)]
     targets: Targets
     replaced_entry_id: UUID | None = None
+    is_replaced: bool = False
     created_at: AwareDatetime
     updated_at: AwareDatetime
 

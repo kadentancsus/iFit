@@ -32,6 +32,28 @@ def test_every_required_operation_has_a_route() -> None:
     assert set(names) >= REQUIRED
 
 
+def test_swap_confirmation_cannot_transfer_original_load() -> None:
+    payload = {
+        "sessionExerciseId": str(uuid4()), "replacementExerciseId": str(uuid4()),
+        "operationId": str(uuid4()),
+        "remainingTargets": {"targetSets": 2, "targetReps": 10, "restSeconds": 90},
+    }
+    assert workout.SwapExerciseInput.model_validate(payload).remaining_targets.target_sets == 2
+    payload["remainingTargets"]["targetKg"] = 60  # type: ignore[index]
+    with pytest.raises(ValidationError):
+        workout.SwapExerciseInput.model_validate(payload)
+
+
+def test_volume_is_not_limited_to_single_set_load() -> None:
+    summary = workout.WorkoutSummary.model_validate({
+        "id": str(uuid4()), "routineNameSnapshot": "Push day", "status": "completed",
+        "startedAt": "2026-11-07T12:00:00Z", "endedAt": "2026-11-07T13:00:00Z",
+        "durationSeconds": 3600, "exerciseCount": 3, "setCount": 9,
+        "weightedVolumeKg": 5400,
+    })
+    assert summary.weighted_volume_kg == 5400
+
+
 def test_routes_are_unique_and_well_formed() -> None:
     pairs = [(op.method, op.path) for op in OPERATIONS]
     assert len(pairs) == len(set(pairs))

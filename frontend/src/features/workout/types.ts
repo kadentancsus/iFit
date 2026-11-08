@@ -24,6 +24,7 @@ export type LogSetInput = SetValues & { sessionExerciseId: string; operationId: 
 export type SetLog = LogSetInput & {
   id: string;
   ordinal: number;
+  isDeleted: boolean;
   completedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -44,6 +45,7 @@ export interface SessionExercise {
   position: number;
   targets: Targets;
   replacedEntryId: string | null;
+  isReplaced: boolean;
   createdAt: string;
   updatedAt: string;
 }

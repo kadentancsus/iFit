@@ -6,14 +6,18 @@ is one definition; this module adds the remaining inputs and response shapes.
 
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import AwareDatetime
+from pydantic import AwareDatetime, Field
 
 from app.contracts.catalog import LastPerformance
 from app.contracts.common import ContractModel, Kilograms, LoadConvention, LocalDate, SessionStatus
 from app.features.workout.schemas import (
     LogSetInput as LogSetInput,
+)
+from app.features.workout.schemas import (
+    RemainingTargets as RemainingTargets,
 )
 from app.features.workout.schemas import (
     RestState as RestState,
@@ -59,7 +63,7 @@ class SwapExerciseInput(ContractModel):
     session_exercise_id: UUID
     replacement_exercise_id: UUID
     #: Sets still to do move to the replacement; logged sets stay put.
-    remaining_targets: Targets
+    remaining_targets: RemainingTargets
     operation_id: UUID
 
 
@@ -87,7 +91,7 @@ class WorkoutSummary(ContractModel):
     set_count: int
     #: Sum of reps x kg over weighted sets only. Bodyweight sets are excluded,
     #: never counted as zero; None when there are no weighted sets.
-    weighted_volume_kg: Kilograms | None = None
+    weighted_volume_kg: Annotated[float, Field(ge=0, allow_inf_nan=False)] | None = None
 
 
 class ProgressPoint(ContractModel):
@@ -97,7 +101,7 @@ class ProgressPoint(ContractModel):
     best_reps: int
     #: Heaviest weighted set that day; None for bodyweight-only days.
     best_weight_kg: Kilograms | None
-    weighted_volume_kg: Kilograms | None
+    weighted_volume_kg: Annotated[float, Field(ge=0, allow_inf_nan=False)] | None
 
 
 class ExerciseProgress(ContractModel):
