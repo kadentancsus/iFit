@@ -10,14 +10,14 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Path, Query
 
-from app.contracts.catalog import Exercise
-from app.contracts.common import Equipment, MovementPattern, Muscle
+from app.contracts.catalog import AlternativeOption, Exercise
+from app.contracts.common import AlternativeKind, Equipment, MovementPattern, Muscle
 from app.contracts.planning import Routine, RoutineSummary, ScheduledWorkout
 from app.core.responses import ApiResponse, ok
 from app.core.supabase import UserDatabase
 
 from . import catalog, schedule, service
-from .database import PublicDatabase
+from .database import OptionalUserDatabase, PublicDatabase
 from .schemas import DeletedRoutine
 
 JsonBody = Annotated[Any, Body(description="camelCase JSON, validated by the planning rules.")]
@@ -118,6 +118,26 @@ async def list_exercises(
 async def get_exercise(id_or_slug: ExerciseId, db: PublicDatabase) -> ApiResponse[Exercise]:
     """One exercise with instructions, form cues and common mistakes."""
     return ok(await catalog.get_exercise(db, id_or_slug))
+
+
+@exercises.get("/{exerciseId}/alternatives", response_model=ApiResponse[list[AlternativeOption]])
+async def get_alternatives(
+    id_or_slug: ExerciseId,
+    kind: AlternativeKind,
+    db: PublicDatabase,
+    user_db: OptionalUserDatabase,
+    equipment: Equipment | None = None,
+) -> ApiResponse[list[AlternativeOption]]:
+    """Substitutions (equipment taken) or regressions (easier variations).
+
+    No sign-in needed. Signed-in callers also get ``lastPerformance``: their own
+    last result for each option, the only load the app may prefill.
+    """
+    return ok(
+        await catalog.get_alternatives(
+            db, id_or_slug, kind, equipment=equipment, user_db=user_db
+        )
+    )
 
 
 router = APIRouter()

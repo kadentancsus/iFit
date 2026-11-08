@@ -82,3 +82,23 @@ def test_every_feature_router_is_mounted(feature: str) -> None:
     expected = endpoints(alone)
     assert expected
     assert expected <= endpoints(create_app())
+
+
+def test_the_planning_lane_serves_every_operation_it_owns() -> None:
+    """Paths and methods must match the shared table exactly, names included."""
+    from app.contracts.operations import OPERATIONS
+    from app.main import create_app
+
+    served = {
+        (method.upper(), path)
+        for path, operations in create_app().openapi()["paths"].items()
+        for method in operations
+    }
+    owned = [operation for operation in OPERATIONS if operation.lane == "sukhdip"]
+    assert owned
+    missing = [
+        f"{operation.method} {operation.path}"
+        for operation in owned
+        if (operation.method, f"/api/v1{operation.path}") not in served
+    ]
+    assert missing == []

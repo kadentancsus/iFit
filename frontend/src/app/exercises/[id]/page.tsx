@@ -12,6 +12,7 @@ import {
   capitalize,
 } from '@/features/catalog/labels';
 import { ui } from '@/features/planning/components/ui';
+import type { AlternativeOption, ApiResult } from '@/lib/contracts';
 
 // One request per page view, shared by the title and the page.
 const loadExercise = cache((id: string) => catalogApi().getExercise(id));
@@ -21,8 +22,54 @@ export async function generateMetadata({ params }: PageProps<'/exercises/[id]'>)
   return { title: result.data?.name ?? 'Exercise' };
 }
 
+function Alternatives({
+  title,
+  result,
+  empty,
+}: {
+  title: string;
+  result: ApiResult<AlternativeOption[]>;
+  empty: string;
+}) {
+  const id = title.toLowerCase().replaceAll(' ', '-');
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-3">
+      <h2 id={id} className="text-xl font-semibold">
+        {title}
+      </h2>
+      {result.error ? (
+        <p className="text-muted">{result.error.message}</p>
+      ) : result.data.length === 0 ? (
+        <p className="text-muted">{empty}</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {result.data.map((option) => (
+            <li key={option.exercise.id}>
+              <Link
+                href={`/exercises/${option.exercise.slug}`}
+                className={`${ui.card} flex flex-col gap-1 hover:border-brand`}
+              >
+                <span className="font-semibold">{option.exercise.name}</span>
+                <span className="text-sm text-muted">
+                  {EQUIPMENT_LABELS[option.exercise.equipment]}
+                </span>
+                <span className="text-sm">{option.rationale}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export default async function ExercisePage({ params }: PageProps<'/exercises/[id]'>) {
-  const result = await loadExercise((await params).id);
+  const id = (await params).id;
+  const [result, substitutions, regressions] = await Promise.all([
+    loadExercise(id),
+    catalogApi().getAlternatives(id, 'substitution'),
+    catalogApi().getAlternatives(id, 'regression'),
+  ]);
   if (result.error?.code === 'not_found') notFound();
 
   if (result.error) {
@@ -124,6 +171,17 @@ export default async function ExercisePage({ params }: PageProps<'/exercises/[id
           ))}
         </ul>
       </section>
+
+      <Alternatives
+        title="If the equipment is taken"
+        result={substitutions}
+        empty="No swaps are listed for this exercise."
+      />
+      <Alternatives
+        title="Easier versions"
+        result={regressions}
+        empty="This is already one of the easiest options for this movement."
+      />
 
       <aside aria-labelledby="pain-title" className="rounded-xl border border-warning p-4">
         <h2 id="pain-title" className="font-semibold">

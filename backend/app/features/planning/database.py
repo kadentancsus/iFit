@@ -7,13 +7,14 @@ from collections.abc import AsyncIterator, Collection
 from typing import Annotated, Any
 
 import httpx
-from fastapi import Depends
+from fastapi import Depends, Header
 from postgrest import AsyncPostgrestClient
 from postgrest.exceptions import APIError
 
+from app.core.auth import TokenVerifier, get_current_user, get_token_verifier
 from app.core.config import Settings
 from app.core.responses import ApiError
-from app.core.supabase import get_app_settings
+from app.core.supabase import create_user_client, get_app_settings
 
 logger = logging.getLogger("ifit.api")
 
@@ -77,3 +78,29 @@ async def get_public_database(
 
 
 PublicDatabase = Annotated[AsyncPostgrestClient, Depends(get_public_database)]
+
+
+async def get_optional_user_database(
+    settings: Annotated[Settings, Depends(get_app_settings)],
+    verifier: Annotated[TokenVerifier, Depends(get_token_verifier)],
+    authorization: Annotated[str | None, Header()] = None,
+) -> AsyncIterator[AsyncPostgrestClient | None]:
+    """The caller's client when they send a token, else None.
+
+    For public pages that add personal details when signed in. A token that is
+    sent but invalid still fails with 401 rather than being ignored.
+    """
+    if authorization is None:
+        yield None
+        return
+    user = await get_current_user(verifier, authorization)
+    client = create_user_client(settings, user)
+    try:
+        yield client
+    finally:
+        await client.aclose()
+
+
+OptionalUserDatabase = Annotated[
+    AsyncPostgrestClient | None, Depends(get_optional_user_database)
+]

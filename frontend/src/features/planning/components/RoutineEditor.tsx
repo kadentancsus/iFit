@@ -2,10 +2,16 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { ROUTINE_TEMPLATES, filterExercises, findExerciseById } from '@/features/catalog';
 import type { Exercise, LoadConvention } from '@/features/catalog';
+import { catalogApi } from '@/features/catalog/api';
+import { AlternativePicker } from '@/features/catalog/components/AlternativePicker';
+import type { AlternativeChoice } from '@/features/catalog/components/AlternativePicker';
+import type { AlternativeKind } from '@/lib/contracts';
+
+import { getAccessToken } from '../access-token';
 
 import { routinesApi } from '../api';
 import type { ApiError } from '../api';
@@ -16,6 +22,7 @@ import {
   emptyDraft,
   moveExercise,
   removeExercise,
+  replaceExercise,
   toRoutineInput,
   updateTargets,
 } from '../routine-draft';
@@ -87,6 +94,8 @@ function ExerciseRow({
   onChange,
   onMove,
   onRemove,
+  onSwap,
+  swapPanel,
 }: {
   row: DraftExercise;
   index: number;
@@ -95,6 +104,9 @@ function ExerciseRow({
   onChange: (patch: Partial<DraftTargets>) => void;
   onMove: (to: number) => void;
   onRemove: () => void;
+  onSwap: () => void;
+  /** Shown in place of the row's buttons while choosing a replacement. */
+  swapPanel?: React.ReactNode;
 }) {
   const exercise = findExerciseById(row.exerciseId);
   const name = exercise?.name ?? 'Exercise';
@@ -142,40 +154,81 @@ function ExerciseRow({
         />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {/* aria-disabled keeps keyboard focus here when a row reaches the end. */}
-        <button
-          type="button"
-          aria-label={`Move ${name} up`}
-          aria-disabled={isFirst}
-          onClick={() => {
-            if (!isFirst) onMove(index - 1);
-          }}
-          className={`${ui.button} aria-disabled:opacity-50`}
-        >
-          Up
-        </button>
-        <button
-          type="button"
-          aria-label={`Move ${name} down`}
-          aria-disabled={isLast}
-          onClick={() => {
-            if (!isLast) onMove(index + 1);
-          }}
-          className={`${ui.button} aria-disabled:opacity-50`}
-        >
-          Down
-        </button>
-        <button
-          type="button"
-          aria-label={`Remove ${name}`}
-          onClick={onRemove}
-          className={`${ui.button} ml-auto text-danger`}
-        >
-          Remove
-        </button>
-      </div>
+      {swapPanel ?? (
+        <div className="flex flex-wrap gap-2">
+          {/* aria-disabled keeps keyboard focus here when a row reaches the end. */}
+          <button
+            type="button"
+            aria-label={`Move ${name} up`}
+            aria-disabled={isFirst}
+            onClick={() => {
+              if (!isFirst) onMove(index - 1);
+            }}
+            className={`${ui.button} aria-disabled:opacity-50`}
+          >
+            Up
+          </button>
+          <button
+            type="button"
+            aria-label={`Move ${name} down`}
+            aria-disabled={isLast}
+            onClick={() => {
+              if (!isLast) onMove(index + 1);
+            }}
+            className={`${ui.button} aria-disabled:opacity-50`}
+          >
+            Down
+          </button>
+          <button type="button" aria-label={`Swap ${name}`} onClick={onSwap} className={ui.button}>
+            Swap
+          </button>
+          <button
+            type="button"
+            aria-label={`Remove ${name}`}
+            onClick={onRemove}
+            className={`${ui.button} ml-auto text-danger`}
+          >
+            Remove
+          </button>
+        </div>
+      )}
     </li>
+  );
+}
+
+function SwapPanel({
+  row,
+  onConfirm,
+  onCancel,
+}: {
+  row: DraftExercise;
+  onConfirm: (choice: AlternativeChoice) => void;
+  onCancel: () => void;
+}) {
+  const exercise = findExerciseById(row.exerciseId);
+  const loadOptions = useCallback(
+    async (kind: AlternativeKind) =>
+      catalogApi().getAlternatives(row.exerciseId, kind, { accessToken: await getAccessToken() }),
+    [row.exerciseId],
+  );
+  if (!exercise) return null;
+
+  const planned = Number(row.targetKg);
+  return (
+    <AlternativePicker
+      current={{
+        id: exercise.id,
+        name: exercise.name,
+        equipment: exercise.equipment,
+        loadConvention: exercise.loadConvention,
+        targetKg: row.targetKg.trim() !== '' && Number.isFinite(planned) ? planned : null,
+      }}
+      // Routine targets are entered in kilograms until profile units arrive.
+      displayUnit="kg"
+      loadOptions={loadOptions}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
   );
 }
 
@@ -232,6 +285,7 @@ function Editor({ initial }: { initial: RoutineDraft }) {
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [swapping, setSwapping] = useState<string | null>(null);
   const titleId = useId();
   const form = useRef<HTMLFormElement>(null);
 
@@ -341,6 +395,28 @@ function Editor({ initial }: { initial: RoutineDraft }) {
                 onChange={(patch) => edit(updateTargets(draft, row.key, patch))}
                 onMove={(to) => move(index, to)}
                 onRemove={() => edit(removeExercise(draft, row.key))}
+                onSwap={() => setSwapping(row.key)}
+                swapPanel={
+                  swapping === row.key ? (
+                    <SwapPanel
+                      row={row}
+                      onCancel={() => setSwapping(null)}
+                      onConfirm={({ option, load }) => {
+                        const before = findExerciseById(row.exerciseId)?.name ?? 'Exercise';
+                        edit(
+                          replaceExercise(
+                            draft,
+                            row.key,
+                            option.exercise.id,
+                            load.mode === 'prior' ? load.kg : null,
+                          ),
+                        );
+                        setSwapping(null);
+                        setStatus(`Swapped ${before} for ${option.exercise.name}. Save to keep it.`);
+                      }}
+                    />
+                  ) : undefined
+                }
               />
             ))}
           </ol>

@@ -105,6 +105,25 @@ export const updateTargets = (
   ),
 });
 
+/**
+ * Puts a different exercise in a row, keeping its sets, reps and rest. The
+ * planned load is replaced, never carried over: pass the user's own prior load
+ * for the new exercise in kilograms, or null to leave it for them to enter.
+ */
+export const replaceExercise = (
+  draft: RoutineDraft,
+  key: string,
+  exerciseId: string,
+  priorKg: number | null,
+): RoutineDraft => ({
+  ...draft,
+  exercises: draft.exercises.map((exercise) =>
+    exercise.key === key
+      ? { ...exercise, exerciseId, targetKg: priorKg === null ? '' : String(priorKg) }
+      : exercise,
+  ),
+});
+
 /** Blank must not become 0, which `Number('')` would otherwise accept as valid. */
 const toNumber = (value: string): number => (value.trim() === '' ? Number.NaN : Number(value));
 

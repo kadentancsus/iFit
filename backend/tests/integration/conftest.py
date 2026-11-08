@@ -19,13 +19,13 @@ from typing import Annotated
 
 import httpx
 import pytest
-from fastapi import Depends
+from fastapi import Depends, Request
 from postgrest import AsyncPostgrestClient
 
 from app.core.auth import AuthenticatedUser, get_current_user
 from app.core.config import Settings
 from app.core.supabase import get_user_database
-from app.features.planning.database import get_public_database
+from app.features.planning.database import get_optional_user_database, get_public_database
 from app.main import create_app
 
 POSTGREST_URL = os.environ.get("IFIT_TEST_POSTGREST_URL")
@@ -84,7 +84,9 @@ def _reset_personal_data() -> None:
         [  # noqa: S607
             "docker", "exec", "-i", "-e", "PGPASSWORD=verify", DATABASE_CONTAINER,
             "psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-h", "127.0.0.1",
-            "-c", "truncate public.scheduled_workouts, public.routines cascade",
+            "-c",
+            "truncate public.workout_operations, public.set_logs, public.session_exercises,"
+            " public.workout_sessions, public.scheduled_workouts, public.routines cascade",
         ],
         check=True,
         capture_output=True,
@@ -126,7 +128,20 @@ async def api() -> AsyncIterator[httpx.AsyncClient]:
         finally:
             await client.aclose()
 
+    async def optional_database(
+        request: Request,
+    ) -> AsyncIterator[AsyncPostgrestClient | None]:
+        if "authorization" not in request.headers:
+            yield None
+            return
+        user = await get_current_user(
+            request.app.state.token_verifier, request.headers["authorization"]
+        )
+        async for client in database(user):
+            yield client
+
     app.dependency_overrides[get_user_database] = database
+    app.dependency_overrides[get_optional_user_database] = optional_database
     app.dependency_overrides[get_public_database] = public_database
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:

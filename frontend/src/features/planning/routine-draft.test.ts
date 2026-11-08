@@ -9,6 +9,7 @@ import {
   emptyDraft,
   moveExercise,
   removeExercise,
+  replaceExercise,
   toRoutineInput,
   updateTargets,
 } from './routine-draft';
@@ -117,6 +118,27 @@ describe('routine drafts', () => {
 
     expect(moveExercise(draft, 0, -1).exercises).toEqual(draft.exercises);
     expect(moveExercise(draft, 1, 2).exercises).toEqual(draft.exercises);
+  });
+
+  it('swaps an exercise but keeps the row, its sets, reps and rest', () => {
+    const machine = findExerciseBySlug('leg-press')!;
+    const draft = replaceExercise(fromSaved(), ROW_A, machine.id, null);
+
+    expect(toRoutineInput(draft).exercises[0]).toEqual({
+      id: ROW_A,
+      exerciseId: machine.id,
+      targetSets: 3,
+      targetReps: 10,
+      targetKg: null,
+      restSeconds: 90,
+    });
+    expect(draft.exercises[1]).toEqual(fromSaved().exercises[1]);
+  });
+
+  it('uses only the prior load it is given, never the old target', () => {
+    const machine = findExerciseBySlug('leg-press')!;
+
+    expect(replaceExercise(fromSaved(), ROW_A, machine.id, 110).exercises[0]?.targetKg).toBe('110');
   });
 
   it('removes only the chosen row', () => {
