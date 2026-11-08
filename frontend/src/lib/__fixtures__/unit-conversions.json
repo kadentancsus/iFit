@@ -1,0 +1,28 @@
+{
+  "description": "Shared by frontend/src/lib/units.test.ts and backend/tests/core/test_units.py so both languages convert and round identically.",
+  "roundHalfUp": [
+    { "value": 2.25, "places": 1, "expected": 2.3 },
+    { "value": 2.24, "places": 1, "expected": 2.2 },
+    { "value": 1.005, "places": 2, "expected": 1.01 },
+    { "value": 0.0005, "places": 3, "expected": 0.001 },
+    { "value": 1e-7, "places": 3, "expected": 0 },
+    { "value": 1000, "places": 3, "expected": 1000 }
+  ],
+  "kgToDisplay": [
+    { "kg": 20, "unit": "kg", "expected": 20 },
+    { "kg": 22.5, "unit": "kg", "expected": 22.5 },
+    { "kg": 20.412, "unit": "kg", "expected": 20.4 },
+    { "kg": 20, "unit": "lb", "expected": 44.1 },
+    { "kg": 20.412, "unit": "lb", "expected": 45 },
+    { "kg": 100, "unit": "lb", "expected": 220.5 },
+    { "kg": 0, "unit": "lb", "expected": 0 }
+  ],
+  "displayToKg": [
+    { "value": 20, "unit": "kg", "expected": 20 },
+    { "value": 22.25, "unit": "kg", "expected": 22.25 },
+    { "value": 45, "unit": "lb", "expected": 20.412 },
+    { "value": 135, "unit": "lb", "expected": 61.235 },
+    { "value": 2.5, "unit": "lb", "expected": 1.134 },
+    { "value": 0, "unit": "lb", "expected": 0 }
+  ]
+}
