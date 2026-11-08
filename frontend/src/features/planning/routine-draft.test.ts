@@ -24,14 +24,16 @@ const pushUp = findExerciseBySlug('push-up')!;
 
 const saved: Routine = {
   id: ROUTINE_ID,
+  ownerId: '55555555-5555-4555-8555-555555555555',
   title: 'Legs',
+  createdAt: '2026-11-07T10:00:00+00:00',
   updatedAt: '2026-11-07T10:00:00+00:00',
   exercises: [
     {
       id: ROW_A,
+      routineId: ROUTINE_ID,
       exerciseId: goblet.id,
       exerciseName: goblet.name,
-      equipment: goblet.equipment,
       loadConvention: goblet.loadConvention,
       position: 0,
       targetSets: 3,
@@ -41,9 +43,9 @@ const saved: Routine = {
     },
     {
       id: ROW_B,
+      routineId: ROUTINE_ID,
       exerciseId: pushUp.id,
       exerciseName: pushUp.name,
-      equipment: pushUp.equipment,
       loadConvention: pushUp.loadConvention,
       position: 1,
       targetSets: 2,

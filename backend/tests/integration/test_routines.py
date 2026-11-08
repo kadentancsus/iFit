@@ -63,8 +63,9 @@ class TestPersistence:
         assert fetched.json()["data"] == routine
         assert routine["title"] == "Push day"
         exercise = routine["exercises"][0]
+        assert routine["ownerId"] == ALEX_ID
+        assert exercise["routineId"] == routine["id"]
         assert exercise["exerciseName"] == "Barbell Bench Press"
-        assert exercise["equipment"] == "barbell"
         assert exercise["loadConvention"] == "total"
         assert (
             exercise["position"],

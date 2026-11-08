@@ -13,10 +13,11 @@ from typing import Any
 from postgrest import AsyncPostgrestClient
 from postgrest.exceptions import APIError
 
+from app.contracts.planning import ScheduledWorkout
 from app.core.responses import ApiError
 
 from .database import run
-from .schemas import ScheduledWorkout
+from .service import routine_not_found
 from .validators import (
     can_change_schedule,
     is_local_date,
@@ -25,7 +26,9 @@ from .validators import (
     validate_schedule_input,
 )
 
-_COLUMNS = "id,routine_id,routine_title,local_date,status,routines(title)"
+_COLUMNS = (
+    "id,owner_id,routine_id,routine_title,local_date,status,created_at,updated_at,routines(title)"
+)
 #: How far ahead a workout can be planned.
 MAX_DAYS_AHEAD = 366
 
@@ -54,15 +57,24 @@ def _to_workout(row: dict[str, Any]) -> ScheduledWorkout:
     routine = row.get("routines")
     return ScheduledWorkout(
         id=row["id"],
+        owner_id=row["owner_id"],
         routine_id=row["routine_id"],
         routine_title=routine["title"] if routine else row["routine_title"],
         local_date=row["local_date"],
         status=row["status"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
     )
 
 
 def _not_found() -> ApiError:
-    return ApiError(404, "schedule_not_found", "We couldn't find that planned workout.")
+    return ApiError(404, "not_found", "We couldn't find that planned workout.")
+
+
+def _routine_missing() -> ApiError:
+    error = routine_not_found()
+    error.field = "routineId"
+    return error
 
 
 def _already_planned() -> ApiError:
@@ -78,7 +90,7 @@ async def list_schedule(
     db: AsyncPostgrestClient, *, start: str | None = None, end: str | None = None
 ) -> list[ScheduledWorkout]:
     query = db.table("scheduled_workouts").select(_COLUMNS)
-    for name, value, operator in (("from", start, "gte"), ("to", end, "lte")):
+    for name, value, operator in (("fromDate", start, "gte"), ("toDate", end, "lte")):
         if value is None:
             continue
         if not is_local_date(value):
@@ -90,7 +102,7 @@ async def list_schedule(
 
 async def _get_row(db: AsyncPostgrestClient, schedule_id: str) -> dict[str, Any]:
     if not is_uuid(schedule_id):
-        raise ApiError(422, "invalid_id", "That request has an invalid ID.", field="id")
+        raise ApiError(422, "invalid_id", "That request has an invalid ID.", field="scheduleId")
     rows = await run(db.table("scheduled_workouts").select(_COLUMNS).eq("id", schedule_id))
     if not rows:
         raise _not_found()
@@ -101,7 +113,7 @@ async def _get_row(db: AsyncPostgrestClient, schedule_id: str) -> dict[str, Any]
 def _locked() -> ApiError:
     return ApiError(
         409,
-        "schedule_locked",
+        "conflict",
         "Only upcoming workouts can be changed. Finished and canceled ones stay as they are.",
     )
 
@@ -124,7 +136,7 @@ async def schedule_routine(
 
     owned = await run(db.table("routines").select("id").eq("id", plan.routine_id))
     if not owned:
-        raise ApiError(404, "routine_not_found", "We couldn't find that routine.", field="routineId")
+        raise _routine_missing()
 
     try:
         rows = await run(
@@ -139,9 +151,7 @@ async def schedule_routine(
         )
     except APIError as error:
         if error.code in _ROUTINE_GONE:
-            raise ApiError(
-                404, "routine_not_found", "We couldn't find that routine.", field="routineId"
-            ) from None
+            raise _routine_missing() from None
         if "operation" in (error.message or "") and plan.operation_id is not None:
             # A retry of a request that already succeeded: return the first result.
             rows = await run(

@@ -56,8 +56,9 @@ class TestScheduling:
         sooner = await plan(api, alex, routine_id, days_ahead(1))
 
         assert later.status_code == sooner.status_code == 201
-        assert sooner.json()["data"] == {
-            "id": sooner.json()["data"]["id"],
+        saved = sooner.json()["data"]
+        assert {key: saved[key] for key in ("ownerId", "routineId", "routineTitle", "localDate", "status")} == {
+            "ownerId": ALEX_ID,
             "routineId": routine_id,
             "routineTitle": "Push day",
             "localDate": days_ahead(1),
@@ -75,7 +76,7 @@ class TestScheduling:
 
         response = await api.get(
             "/api/v1/schedule",
-            params={"from": days_ahead(2), "to": days_ahead(9)},
+            params={"fromDate": days_ahead(2), "toDate": days_ahead(9)},
             headers=alex,
         )
 
@@ -135,7 +136,7 @@ class TestScheduling:
         assert canceled.json()["data"]["status"] == "canceled"
         assert again.status_code == 200
         assert move_canceled.status_code == 409
-        assert move_canceled.json()["error"]["code"] == "schedule_locked"
+        assert move_canceled.json()["error"]["code"] == "conflict"
 
     async def test_moving_onto_a_day_with_the_same_routine_is_rejected(
         self, api: httpx.AsyncClient, alex: Headers
@@ -213,7 +214,7 @@ class TestTwoUserIsolation:
         response = await plan(api, bailey, routine_id, days_ahead(1))
 
         assert response.status_code == 404
-        assert response.json()["error"]["code"] == "routine_not_found"
+        assert response.json()["error"]["code"] == "not_found"
         assert (await api.get("/api/v1/schedule", headers=alex)).json()["data"] == []
 
     async def test_concurrent_requests_keep_identities_separate(

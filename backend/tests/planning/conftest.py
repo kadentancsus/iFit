@@ -28,7 +28,9 @@ CATALOG = [
 ]
 SAVED_ROW = {
     "id": ROUTINE_ID,
+    "owner_id": "aaaaaaaa-0000-4000-8000-000000000001",
     "title": "Push day",
+    "created_at": "2026-11-07T10:00:00+00:00",
     "updated_at": "2026-11-07T10:00:00+00:00",
     "routine_exercises": [],
 }

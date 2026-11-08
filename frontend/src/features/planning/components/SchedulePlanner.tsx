@@ -270,7 +270,10 @@ export function SchedulePlanner({ initialRoutineId }: { initialRoutineId?: strin
     let current = true;
     void Promise.all([
       routinesApi.listRoutines(),
-      scheduleApi.listSchedule({ from: addDays(today, -RECENT_DAYS) }),
+      scheduleApi.listScheduledWorkouts({
+        fromDate: addDays(today, -RECENT_DAYS),
+        toDate: addDays(today, MAX_DAYS_AHEAD),
+      }),
     ]).then(([routines, schedule]) => {
       if (!current) return;
       const failed = routines.error ?? schedule.error;

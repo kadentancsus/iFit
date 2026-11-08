@@ -15,7 +15,7 @@ async def test_lists_the_seeded_catalog_without_sign_in(api: httpx.AsyncClient) 
     exercises = response.json()["data"]
     assert len(exercises) == 30
     assert [item["pattern"] for item in exercises][:1] == ["push"]
-    assert {"instructions", "cues"}.isdisjoint(exercises[0])
+    assert len(exercises[0]["cues"]) == 3
 
 
 @pytest.mark.parametrize(
@@ -65,4 +65,4 @@ async def test_reads_one_exercise_by_slug_or_id(api: httpx.AsyncClient) -> None:
 async def test_unknown_exercises_are_not_found(api: httpx.AsyncClient, missing: str) -> None:
     response = await api.get(f"/api/v1/exercises/{missing}")
     assert response.status_code == 404
-    assert response.json()["error"]["code"] == "exercise_not_found"
+    assert response.json()["error"]["code"] == "not_found"

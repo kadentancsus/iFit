@@ -6,17 +6,17 @@ import re
 
 from postgrest import AsyncPostgrestClient
 
+from app.contracts.catalog import Exercise
+from app.contracts.common import Equipment, MovementPattern, Muscle
 from app.core.responses import ApiError
 
 from .database import run
-from .schemas import Equipment, ExerciseDetail, ExerciseSummary, MovementPattern, Muscle
 from .validators import is_uuid
 
-_SUMMARY_COLUMNS = (
+_COLUMNS = (
     "id,slug,name,pattern,primary_muscles,secondary_muscles,equipment,load_convention,"
-    "difficulty,summary,asset_path,asset_alt"
+    "difficulty,summary,instructions,cues,mistakes,asset_path,motion_asset_path,asset_alt"
 )
-_DETAIL_COLUMNS = f"{_SUMMARY_COLUMNS},instructions,cues,mistakes,motion_asset_path"
 _PATTERN_ORDER: tuple[MovementPattern, ...] = ("push", "pull", "squat", "hinge", "core")
 _SLUG = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 
@@ -28,11 +28,11 @@ async def list_exercises(
     pattern: MovementPattern | None = None,
     equipment: Equipment | None = None,
     muscle: Muscle | None = None,
-) -> list[ExerciseSummary]:
+) -> list[Exercise]:
     """Filters in Python: the catalog is a few dozen rows, and this avoids
     escaping user search text into a PostgREST filter."""
-    rows = await run(db.table("exercises").select(_SUMMARY_COLUMNS))
-    exercises = [ExerciseSummary.model_validate(row) for row in rows]
+    rows = await run(db.table("exercises").select(_COLUMNS))
+    exercises = [Exercise.model_validate(row) for row in rows]
     needle = (search or "").strip().casefold()
     matches = [
         exercise
@@ -51,7 +51,7 @@ async def list_exercises(
     )
 
 
-async def get_exercise(db: AsyncPostgrestClient, id_or_slug: str) -> ExerciseDetail:
+async def get_exercise(db: AsyncPostgrestClient, id_or_slug: str) -> Exercise:
     """Accepts the exercise ID or its slug, so pages can use readable URLs."""
     if is_uuid(id_or_slug):
         column = "id"
@@ -59,11 +59,11 @@ async def get_exercise(db: AsyncPostgrestClient, id_or_slug: str) -> ExerciseDet
         column = "slug"
     else:
         raise _exercise_not_found()
-    rows = await run(db.table("exercises").select(_DETAIL_COLUMNS).eq(column, id_or_slug))
+    rows = await run(db.table("exercises").select(_COLUMNS).eq(column, id_or_slug))
     if not rows:
         raise _exercise_not_found()
-    return ExerciseDetail.model_validate(rows[0])
+    return Exercise.model_validate(rows[0])
 
 
 def _exercise_not_found() -> ApiError:
-    return ApiError(404, "exercise_not_found", "We couldn't find that exercise.")
+    return ApiError(404, "not_found", "We couldn't find that exercise.")

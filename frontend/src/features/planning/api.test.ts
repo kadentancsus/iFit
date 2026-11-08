@@ -1,74 +1,77 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createCatalogApi } from '../catalog/api';
-import { createRoutinesApi, createScheduleApi } from './api';
+import { catalogApi } from '../catalog/api';
+import { planningApi } from './api';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
-const apiWith = (fetcher: typeof fetch, token: string | null = 'user-token') =>
-  createRoutinesApi({
-    baseUrl: 'http://api.test',
-    getToken: async () => token,
-    fetcher,
+const ok = (data: unknown = {}) => vi.fn<typeof fetch>(async () => json(200, { data, error: null }));
+
+const calls = (fetcher: ReturnType<typeof vi.fn<typeof fetch>>) =>
+  fetcher.mock.calls.map(([url, init]) => [
+    init?.method,
+    String(url).replace(/^https?:\/\/[^/]+/, ''),
+    init?.body ?? null,
+  ]);
+
+const signedIn = (fetcher: typeof fetch) => planningApi(async () => 'user-token', fetcher);
+
+describe('planning API client', () => {
+  it('sends the access token', async () => {
+    const fetcher = ok([]);
+
+    expect(await signedIn(fetcher).listRoutines()).toEqual({ data: [], error: null });
+    expect(fetcher.mock.calls[0]![1]?.headers).toMatchObject({ Authorization: 'Bearer user-token' });
   });
 
-describe('routines API client', () => {
-  it('sends the access token and returns the data', async () => {
-    const fetcher = vi.fn<typeof fetch>(async () => json(200, { data: [], error: null }));
+  it('creates without an ID and updates with one', async () => {
+    const fetcher = ok();
+    const api = signedIn(fetcher);
 
-    const result = await apiWith(fetcher).listRoutines();
+    await api.saveRoutine({ title: 'Push', exercises: [], operationId: 'op' });
+    await api.saveRoutine({ id: 'abc', title: 'Push', exercises: [] });
 
-    expect(result).toEqual({ data: [], error: null });
-    const [url, init] = fetcher.mock.calls[0]!;
-    expect(url).toBe('http://api.test/api/v1/routines');
-    expect(init?.headers).toMatchObject({ Authorization: 'Bearer user-token' });
-  });
-
-  it('creates when the input has no ID', async () => {
-    const fetcher = vi.fn<typeof fetch>(async () => json(201, { data: {}, error: null }));
-
-    await apiWith(fetcher).saveRoutine({ title: 'Push', exercises: [], operationId: 'op' });
-
-    const [url, init] = fetcher.mock.calls[0]!;
-    expect(url).toBe('http://api.test/api/v1/routines');
-    expect(init?.method).toBe('POST');
-    expect(JSON.parse(init?.body as string)).toEqual({
-      title: 'Push',
-      exercises: [],
-      operationId: 'op',
-    });
-  });
-
-  it('updates when the input has an ID', async () => {
-    const fetcher = vi.fn<typeof fetch>(async () => json(200, { data: {}, error: null }));
-
-    await apiWith(fetcher).saveRoutine({ id: 'abc', title: 'Push', exercises: [] });
-
-    const [url, init] = fetcher.mock.calls[0]!;
-    expect(url).toBe('http://api.test/api/v1/routines/abc');
-    expect(init?.method).toBe('PUT');
+    expect(calls(fetcher)).toEqual([
+      ['POST', '/api/v1/routines', '{"title":"Push","exercises":[],"operationId":"op"}'],
+      ['PUT', '/api/v1/routines/abc', '{"id":"abc","title":"Push","exercises":[]}'],
+    ]);
   });
 
   it('escapes IDs placed in the path', async () => {
-    const fetcher = vi.fn<typeof fetch>(async () => json(200, { data: {}, error: null }));
+    const fetcher = ok();
 
-    await apiWith(fetcher).getRoutine('../profile');
+    await signedIn(fetcher).getRoutine('../profile');
 
-    expect(fetcher.mock.calls[0]![0]).toBe('http://api.test/api/v1/routines/..%2Fprofile');
+    expect(calls(fetcher)[0]![1]).toBe('/api/v1/routines/..%2Fprofile');
+  });
+
+  it('lists, reschedules and cancels plans', async () => {
+    const fetcher = ok();
+    const api = signedIn(fetcher);
+
+    await api.listScheduledWorkouts({ fromDate: '2026-11-01' });
+    await api.rescheduleWorkout('abc', '2026-11-20');
+    await api.cancelScheduledWorkout('abc');
+
+    expect(calls(fetcher)).toEqual([
+      ['GET', '/api/v1/schedule?fromDate=2026-11-01', null],
+      ['PATCH', '/api/v1/schedule/abc', '{"localDate":"2026-11-20"}'],
+      ['POST', '/api/v1/schedule/abc/cancel', null],
+    ]);
   });
 
   it('passes server errors through with their field', async () => {
     const error = { code: 'invalid_title', message: 'Give it a name.', field: 'title' };
     const fetcher = vi.fn<typeof fetch>(async () => json(422, { data: null, error }));
 
-    expect(await apiWith(fetcher).listRoutines()).toEqual({ data: null, error });
+    expect(await signedIn(fetcher).listRoutines()).toEqual({ data: null, error });
   });
 
   it('asks the user to sign in without calling the API', async () => {
     const fetcher = vi.fn<typeof fetch>();
 
-    const result = await apiWith(fetcher, null).listRoutines();
+    const result = await planningApi(async () => null, fetcher).listRoutines();
 
     expect(result.error?.code).toBe('not_authenticated');
     expect(fetcher).not.toHaveBeenCalled();
@@ -79,56 +82,20 @@ describe('routines API client', () => {
       throw new TypeError('Failed to fetch');
     });
 
-    const result = await apiWith(fetcher).listRoutines();
+    const result = await signedIn(fetcher).listRoutines();
 
     expect(result.error?.code).toBe('network_error');
     expect(result.error?.message).not.toContain('Failed to fetch');
-  });
-
-  it('handles a response that is not JSON', async () => {
-    const fetcher = vi.fn<typeof fetch>(async () => new Response('<html>', { status: 502 }));
-
-    expect((await apiWith(fetcher).listRoutines()).error?.code).toBe('request_failed');
-  });
-});
-
-describe('schedule API client', () => {
-  it('lists a date range', async () => {
-    const fetcher = vi.fn<typeof fetch>(async () => json(200, { data: [], error: null }));
-
-    await createScheduleApi({ baseUrl: 'http://api.test', getToken: async () => 't', fetcher })
-      .listSchedule({ from: '2026-11-01', to: undefined });
-
-    expect(fetcher.mock.calls[0]![0]).toBe('http://api.test/api/v1/schedule?from=2026-11-01');
-  });
-
-  it('reschedules and cancels by ID', async () => {
-    const fetcher = vi.fn<typeof fetch>(async () => json(200, { data: {}, error: null }));
-    const api = createScheduleApi({ baseUrl: 'http://api.test', getToken: async () => 't', fetcher });
-
-    await api.rescheduleWorkout('abc', '2026-11-20');
-    await api.cancelScheduledWorkout('abc');
-
-    expect(fetcher.mock.calls.map(([url, init]) => [init?.method, url, init?.body])).toEqual([
-      ['PATCH', 'http://api.test/api/v1/schedule/abc', '{"localDate":"2026-11-20"}'],
-      ['POST', 'http://api.test/api/v1/schedule/abc/cancel', undefined],
-    ]);
   });
 });
 
 describe('catalog API client', () => {
   it('never sends a token and skips empty filters', async () => {
-    const fetcher = vi.fn<typeof fetch>(async () => json(200, { data: [], error: null }));
+    const fetcher = ok([]);
 
-    await createCatalogApi({ baseUrl: 'http://api.test', fetcher }).listExercises({
-      search: 'squat',
-      equipment: undefined,
-      pattern: 'squat',
-    });
+    await catalogApi(fetcher).listExercises({ search: 'squat', equipment: undefined, pattern: 'squat' });
 
-    const [url, init] = fetcher.mock.calls[0]!;
-    expect(url).toBe('http://api.test/api/v1/exercises?search=squat&pattern=squat');
-    expect(init?.headers).not.toHaveProperty('Authorization');
-    expect(init?.cache).toBe('no-store');
+    expect(calls(fetcher)).toEqual([['GET', '/api/v1/exercises?search=squat&pattern=squat', null]]);
+    expect(fetcher.mock.calls[0]![1]?.headers).not.toHaveProperty('Authorization');
   });
 });

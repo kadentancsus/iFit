@@ -8,10 +8,13 @@ const workout = (
   status: ScheduledWorkout['status'] = 'planned',
 ): ScheduledWorkout => ({
   id: `${localDate}-${status}`,
+  ownerId: 'o',
   routineId: 'r',
   routineTitle: 'Push day',
   localDate,
   status,
+  createdAt: '2026-11-01T00:00:00Z',
+  updatedAt: '2026-11-01T00:00:00Z',
 });
 
 describe('schedule dates', () => {

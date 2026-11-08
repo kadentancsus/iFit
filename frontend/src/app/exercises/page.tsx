@@ -19,7 +19,7 @@ export default async function ExercisesPage({ searchParams }: PageProps<'/exerci
   const equipment = pick<Equipment>(params.equipment, EQUIPMENT_TYPES);
   const filtered = Boolean(search || pattern || equipment);
 
-  const result = await catalogApi.listExercises({ search, pattern, equipment });
+  const result = await catalogApi().listExercises({ search, pattern, equipment });
 
   return (
     <div className="flex flex-col gap-6">

@@ -14,7 +14,7 @@ import {
 import { ui } from '@/features/planning/components/ui';
 
 // One request per page view, shared by the title and the page.
-const loadExercise = cache((id: string) => catalogApi.getExercise(id));
+const loadExercise = cache((id: string) => catalogApi().getExercise(id));
 
 export async function generateMetadata({ params }: PageProps<'/exercises/[id]'>): Promise<Metadata> {
   const result = await loadExercise((await params).id);
@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: PageProps<'/exercises/[id]'>)
 
 export default async function ExercisePage({ params }: PageProps<'/exercises/[id]'>) {
   const result = await loadExercise((await params).id);
-  if (result.error?.code === 'exercise_not_found') notFound();
+  if (result.error?.code === 'not_found') notFound();
 
   if (result.error) {
     return (

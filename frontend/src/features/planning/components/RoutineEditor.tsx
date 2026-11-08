@@ -444,7 +444,7 @@ export function RoutineEditor({
   if (draft) return <Editor initial={draft} />;
 
   if (loadError) {
-    const canRetry = loadError.code !== 'routine_not_found' && loadError.code !== 'invalid_id';
+    const canRetry = loadError.code !== 'not_found' && loadError.code !== 'invalid_id';
     const signedOut = isSignedOut(loadError.code);
     return (
       <section role="alert" className="flex flex-col items-start gap-4">

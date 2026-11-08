@@ -224,7 +224,7 @@ class TestSaving:
             headers=ALEX,
         )
         assert response.status_code == 404
-        assert response.json()["error"]["code"] == "routine_not_found"
+        assert response.json()["error"]["code"] == "not_found"
 
     @pytest.mark.parametrize("method", ["GET", "DELETE"])
     async def test_a_missing_routine_is_not_found(
@@ -233,7 +233,7 @@ class TestSaving:
         postgrest.routines = []
         response = await api.request(method, f"/api/v1/routines/{ROUTINE_ID}", headers=ALEX)
         assert response.status_code == 404
-        assert response.json()["error"]["code"] == "routine_not_found"
+        assert response.json()["error"]["code"] == "not_found"
 
 
 async def test_database_errors_stay_private(

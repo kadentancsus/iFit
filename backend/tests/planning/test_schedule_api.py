@@ -98,7 +98,7 @@ class TestEndpoints:
         )
 
         # Past validation; the fake database has no such routine.
-        assert response.json()["error"]["code"] == "routine_not_found"
+        assert response.json()["error"]["code"] == "not_found"
 
     @pytest.mark.parametrize("body", [{}, {"localDate": "2000-01-01"}, {"localDate": 20991231}])
     async def test_rejects_bad_reschedules_before_saving(
@@ -120,7 +120,7 @@ class TestEndpoints:
         assert response.json()["error"]["code"] == "invalid_id"
         assert postgrest.requests == []
 
-    @pytest.mark.parametrize("name", ["from", "to"])
+    @pytest.mark.parametrize("name", ["fromDate", "toDate"])
     async def test_rejects_a_bad_date_range(
         self, api: httpx.AsyncClient, postgrest: FakePostgrest, name: str
     ) -> None:

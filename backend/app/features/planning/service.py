@@ -12,48 +12,43 @@ from typing import Any
 
 from postgrest import AsyncPostgrestClient
 
+from app.contracts.planning import Routine, RoutineExercise, RoutineSummary
 from app.core.responses import ApiError
 
-from .database import run as _rows
-from .schemas import (
-    ROUTINE_MAX_EXERCISES,
-    DeletedRoutine,
-    ExerciseRef,
-    RoutineDetail,
-    RoutineExerciseView,
-    RoutineInput,
-    RoutineSummary,
-)
+from .database import run
+from .schemas import ROUTINE_MAX_EXERCISES, DeletedRoutine, ExerciseRef, RoutineInput
 from .validators import is_uuid, validate_routine_input
 
-_ROUTINE_DETAIL_COLUMNS = (
-    "id,title,updated_at,"
-    "routine_exercises(id,exercise_id,position,target_sets,target_reps,target_kg,rest_seconds,"
-    "exercises(name,equipment,load_convention))"
+_ROUTINE_COLUMNS = (
+    "id,owner_id,title,created_at,updated_at,"
+    "routine_exercises(id,routine_id,exercise_id,position,target_sets,target_reps,target_kg,"
+    "rest_seconds,exercises(name,load_convention))"
 )
 
 
-def _routine_not_found() -> ApiError:
-    return ApiError(404, "routine_not_found", "We couldn't find that routine.")
+def routine_not_found() -> ApiError:
+    return ApiError(404, "not_found", "We couldn't find that routine.")
 
 
-def _require_uuid(value: str) -> None:
+def require_uuid(value: str, field: str = "id") -> None:
     if not is_uuid(value):
-        raise ApiError(422, "invalid_id", "That request has an invalid ID.", field="id")
+        raise ApiError(422, "invalid_id", "That request has an invalid ID.", field=field)
 
 
-def _to_detail(row: Mapping[str, Any]) -> RoutineDetail:
+def _to_routine(row: Mapping[str, Any]) -> Routine:
     exercises = sorted(row["routine_exercises"], key=lambda exercise: exercise["position"])
-    return RoutineDetail(
+    return Routine(
         id=row["id"],
+        owner_id=row["owner_id"],
         title=row["title"],
+        created_at=row["created_at"],
         updated_at=row["updated_at"],
         exercises=tuple(
-            RoutineExerciseView(
+            RoutineExercise(
                 id=exercise["id"],
+                routine_id=exercise["routine_id"],
                 exercise_id=exercise["exercise_id"],
                 exercise_name=exercise["exercises"]["name"],
-                equipment=exercise["exercises"]["equipment"],
                 load_convention=exercise["exercises"]["load_convention"],
                 position=exercise["position"],
                 target_sets=exercise["target_sets"],
@@ -67,7 +62,7 @@ def _to_detail(row: Mapping[str, Any]) -> RoutineDetail:
 
 
 async def list_routines(db: AsyncPostgrestClient) -> list[RoutineSummary]:
-    rows = await _rows(
+    rows = await run(
         db.table("routines")
         .select("id,title,updated_at,routine_exercises(id)")
         .order("updated_at", desc=True)
@@ -83,12 +78,12 @@ async def list_routines(db: AsyncPostgrestClient) -> list[RoutineSummary]:
     ]
 
 
-async def get_routine(db: AsyncPostgrestClient, routine_id: str) -> RoutineDetail:
-    _require_uuid(routine_id)
-    rows = await _rows(db.table("routines").select(_ROUTINE_DETAIL_COLUMNS).eq("id", routine_id))
+async def get_routine(db: AsyncPostgrestClient, routine_id: str) -> Routine:
+    require_uuid(routine_id, "routineId")
+    rows = await run(db.table("routines").select(_ROUTINE_COLUMNS).eq("id", routine_id))
     if not rows:
-        raise _routine_not_found()
-    return _to_detail(rows[0])
+        raise routine_not_found()
+    return _to_routine(rows[0])
 
 
 def _requested_exercise_ids(payload: object) -> list[str]:
@@ -108,7 +103,7 @@ async def _validated_input(db: AsyncPostgrestClient, payload: object) -> Routine
     known: dict[str, ExerciseRef] = {}
     exercise_ids = _requested_exercise_ids(payload)
     if exercise_ids:
-        rows = await _rows(
+        rows = await run(
             db.table("exercises").select("id,name,load_convention").in_("id", exercise_ids)
         )
         known = {row["id"]: ExerciseRef(**row) for row in rows}
@@ -120,9 +115,7 @@ async def _validated_input(db: AsyncPostgrestClient, payload: object) -> Routine
     return result.data
 
 
-async def _save(
-    db: AsyncPostgrestClient, routine: RoutineInput, routine_id: str | None
-) -> RoutineDetail:
+async def _save(db: AsyncPostgrestClient, routine: RoutineInput, routine_id: str | None) -> Routine:
     params: dict[str, Any] = {
         "p_routine_id": routine_id,
         "p_title": routine.title,
@@ -131,23 +124,21 @@ async def _save(
         ],
         "p_operation_id": routine.operation_id,
     }
-    saved_id = await _rows(db.rpc("save_routine", params))
+    saved_id = await run(db.rpc("save_routine", params))
     if saved_id is None:
-        raise _routine_not_found()
+        raise routine_not_found()
     return await get_routine(db, saved_id)
 
 
-async def create_routine(db: AsyncPostgrestClient, payload: object) -> RoutineDetail:
+async def create_routine(db: AsyncPostgrestClient, payload: object) -> Routine:
     routine = await _validated_input(db, payload)
     if routine.id is not None:
         raise ApiError(422, "invalid_id", "A new routine can't have an ID yet.", field="id")
     return await _save(db, routine, None)
 
 
-async def update_routine(
-    db: AsyncPostgrestClient, routine_id: str, payload: object
-) -> RoutineDetail:
-    _require_uuid(routine_id)
+async def update_routine(db: AsyncPostgrestClient, routine_id: str, payload: object) -> Routine:
+    require_uuid(routine_id, "routineId")
     routine = await _validated_input(db, payload)
     if routine.id is not None and routine.id.lower() != routine_id.lower():
         raise ApiError(422, "invalid_id", "That request has an invalid ID.", field="id")
@@ -156,8 +147,8 @@ async def update_routine(
 
 async def delete_routine(db: AsyncPostgrestClient, routine_id: str) -> DeletedRoutine:
     """Deletes the routine; its planned workouts are canceled by a database trigger."""
-    _require_uuid(routine_id)
-    deleted = await _rows(db.table("routines").delete().eq("id", routine_id))
+    require_uuid(routine_id, "routineId")
+    deleted = await run(db.table("routines").delete().eq("id", routine_id))
     if not deleted:
-        raise _routine_not_found()
+        raise routine_not_found()
     return DeletedRoutine(id=routine_id)

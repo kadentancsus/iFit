@@ -73,6 +73,7 @@ ErrorCode = Literal[
     "load_not_applicable",
     "too_many_exercises",
     "duplicate_entry",
+    "database_unavailable",
     # Workout
     "session_closed",
     "active_session_exists",
