@@ -33,6 +33,8 @@ _COLUMNS = (
 MAX_DAYS_AHEAD = 366
 
 _UNIQUE_VIOLATION = "23505"
+#: Raised by the database while a workout started from the plan is running.
+_IN_PROGRESS = "55006"
 #: An RLS rejection or a missing routine both mean the routine isn't the caller's.
 _ROUTINE_GONE = {"42501", "23502", "23503"}
 
@@ -118,6 +120,14 @@ def _locked() -> ApiError:
     )
 
 
+def _in_progress() -> ApiError:
+    return ApiError(
+        409,
+        "conflict",
+        "This workout is in progress. Finish it before moving or canceling it.",
+    )
+
+
 def _require_planned(row: dict[str, Any]) -> None:
     if not can_change_schedule(row["status"]):
         raise _locked()
@@ -188,9 +198,11 @@ async def reschedule_workout(
             .update({"local_date": result.data.local_date})
             .eq("id", schedule_id)
             .eq("status", "planned"),
-            expected={_UNIQUE_VIOLATION},
+            expected={_UNIQUE_VIOLATION, _IN_PROGRESS},
         )
-    except APIError:
+    except APIError as error:
+        if error.code == _IN_PROGRESS:
+            raise _in_progress() from None
         raise _already_planned() from None
     if not rows:
         # It was finished or canceled between the check and the update.
@@ -208,10 +220,14 @@ async def cancel_scheduled_workout(
     _require_planned(row)
     # Filtering on status keeps a plan finished meanwhile from being canceled;
     # rereading then reports whatever state it ended up in.
-    await run(
-        db.table("scheduled_workouts")
-        .update({"status": "canceled"})
-        .eq("id", schedule_id)
-        .eq("status", "planned")
-    )
+    try:
+        await run(
+            db.table("scheduled_workouts")
+            .update({"status": "canceled"})
+            .eq("id", schedule_id)
+            .eq("status", "planned"),
+            expected={_IN_PROGRESS},
+        )
+    except APIError:
+        raise _in_progress() from None
     return _to_workout(await _get_row(db, schedule_id))

@@ -189,6 +189,68 @@ class TestScheduling:
         ]
 
 
+class TestPlansInProgress:
+    """A plan whose workout is running stays put until the workout ends."""
+
+    async def start(self, api: httpx.AsyncClient, user: Headers) -> dict[str, str]:
+        routine_id = await new_routine(api, user)
+        planned = (await plan(api, user, routine_id, days_ahead(0))).json()["data"]
+        started = await api.post(
+            "/api/v1/workouts",
+            json={
+                "routineId": routine_id,
+                "scheduleId": planned["id"],
+                "operationId": str(uuid.uuid4()),
+            },
+            headers=user,
+        )
+        assert started.status_code == 200, started.text
+        return {"id": planned["id"], "localDate": planned["localDate"]}
+
+    async def test_moving_a_started_plan_is_refused(
+        self, api: httpx.AsyncClient, alex: Headers
+    ) -> None:
+        planned = await self.start(api, alex)
+
+        response = await api.patch(
+            f"/api/v1/schedule/{planned['id']}", json={"localDate": days_ahead(1)}, headers=alex
+        )
+
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "conflict"
+        assert "in progress" in response.json()["error"]["message"]
+        listed = (await api.get("/api/v1/schedule", headers=alex)).json()["data"]
+        assert [(item["localDate"], item["status"]) for item in listed] == [
+            (planned["localDate"], "planned")
+        ]
+
+    async def test_canceling_a_started_plan_is_refused(
+        self, api: httpx.AsyncClient, alex: Headers
+    ) -> None:
+        planned = await self.start(api, alex)
+
+        response = await api.post(f"/api/v1/schedule/{planned['id']}/cancel", headers=alex)
+
+        assert response.status_code == 409
+        assert "in progress" in response.json()["error"]["message"]
+        listed = (await api.get("/api/v1/schedule", headers=alex)).json()["data"]
+        assert [item["status"] for item in listed] == ["planned"]
+
+    async def test_other_plans_still_change(self, api: httpx.AsyncClient, alex: Headers) -> None:
+        await self.start(api, alex)
+        other = (await plan(api, alex, await new_routine(api, alex, "Legs"), days_ahead(2))).json()
+
+        moved = await api.patch(
+            f"/api/v1/schedule/{other['data']['id']}",
+            json={"localDate": days_ahead(3)},
+            headers=alex,
+        )
+        canceled = await api.post(f"/api/v1/schedule/{other['data']['id']}/cancel", headers=alex)
+
+        assert moved.status_code == canceled.status_code == 200
+        assert canceled.json()["data"]["status"] == "canceled"
+
+
 class TestTwoUserIsolation:
     async def test_plans_are_private(
         self, api: httpx.AsyncClient, alex: Headers, bailey: Headers
