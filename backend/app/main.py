@@ -21,6 +21,8 @@ from app.core.auth import TokenVerifier
 from app.core.config import Settings, get_settings
 from app.core.responses import ApiResponse, install_error_handlers, ok
 from app.features.identity.router import router as identity_router
+from app.features.planning.router import router as planning_router
+from app.features.workout.router import router as workout_router
 
 API_PREFIX = "/api/v1"
 
@@ -73,6 +75,8 @@ def create_app(
         return ok(Health(status="ok"))
 
     api.include_router(identity_router)
+    api.include_router(planning_router)
+    api.include_router(workout_router)
     app.include_router(api)
     return app
 

@@ -44,6 +44,19 @@ jobs:
       - run: python -m mypy backend/app
       - run: python -m pytest backend/tests
 
+  api:
+    name: API against real Postgres and PostgREST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: python -m pip install -r backend/requirements-dev.txt
+      - run: scripts/verify-api.sh
+
   database:
     name: Migrations, seed and RLS
     runs-on: ubuntu-latest

@@ -86,6 +86,12 @@ class RescheduleInput(CamelModel):
     local_date: str
 
 
+class DeletedRoutine(CamelModel):
+    """``deleteRoutine`` result."""
+
+    id: str
+
+
 class PlanningError(CamelModel):
     code: PlanningErrorCode
     #: Safe to show to the user.

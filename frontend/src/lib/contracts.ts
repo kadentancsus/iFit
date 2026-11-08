@@ -113,6 +113,7 @@ export const ERROR_CODES = [
   'load_not_applicable',
   'too_many_exercises',
   'duplicate_entry',
+  'database_unavailable',
   'session_closed',
   'active_session_exists',
   'conflict',
@@ -236,7 +237,8 @@ export interface Routine {
 export interface ScheduledWorkout {
   id: string;
   ownerId: string;
-  routineId: string;
+  /** Null once the routine is deleted; the plan is kept with its last title. */
+  routineId: string | null;
   routineTitle: string;
   localDate: string;
   status: ScheduleStatus;

@@ -62,8 +62,9 @@ class Routine(ContractModel):
 class ScheduledWorkout(ContractModel):
     id: UUID
     owner_id: UUID
-    routine_id: UUID
-    #: Current title of the routine, for display.
+    #: None once the routine is deleted; the plan is kept with its last title.
+    routine_id: UUID | None
+    #: Current title of the routine (its last title if deleted), for display.
     routine_title: str
     local_date: LocalDate
     status: ScheduleStatus
