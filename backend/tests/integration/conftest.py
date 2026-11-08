@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import json
 import os
+import subprocess
 import time
 from collections.abc import AsyncIterator
 from typing import Annotated
@@ -24,10 +25,12 @@ from postgrest import AsyncPostgrestClient
 from app.core.auth import AuthenticatedUser, get_current_user
 from app.core.config import Settings
 from app.core.supabase import get_user_database
+from app.features.planning.database import get_public_database
 from app.main import create_app
 
 POSTGREST_URL = os.environ.get("IFIT_TEST_POSTGREST_URL")
 JWT_SECRET = os.environ.get("IFIT_TEST_JWT_SECRET", "")
+DATABASE_CONTAINER = os.environ.get("IFIT_TEST_DATABASE_CONTAINER", "")
 
 #: Created by scripts/verify-api.sh.
 ALEX_ID = "aaaaaaaa-0000-4000-8000-00000000f001"
@@ -71,9 +74,27 @@ def _fake_auth_server(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json={"id": claims["sub"], "email": None})
 
 
+def _reset_personal_data() -> None:
+    """Empties the personal tables so each test starts clean.
+
+    Canceled plans can't be deleted through the API on purpose, so this runs as
+    the database owner inside the throwaway container.
+    """
+    subprocess.run(  # noqa: S603
+        [  # noqa: S607
+            "docker", "exec", "-i", "-e", "PGPASSWORD=verify", DATABASE_CONTAINER,
+            "psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-h", "127.0.0.1",
+            "-c", "truncate public.scheduled_workouts, public.routines cascade",
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+
 @pytest.fixture
 async def api() -> AsyncIterator[httpx.AsyncClient]:
     assert POSTGREST_URL is not None
+    _reset_personal_data()
     settings = Settings(
         supabase_url="https://test-project.supabase.co",  # type: ignore[arg-type]
         supabase_publishable_key="sb_publishable_test_key_for_unit_tests",
@@ -97,16 +118,19 @@ async def api() -> AsyncIterator[httpx.AsyncClient]:
         finally:
             await client.aclose()
 
+    async def public_database() -> AsyncIterator[AsyncPostgrestClient]:
+        http_client = httpx.AsyncClient(base_url=POSTGREST_URL, timeout=10)
+        client = AsyncPostgrestClient(POSTGREST_URL, http_client=http_client, retry_enabled=False)
+        try:
+            yield client
+        finally:
+            await client.aclose()
+
     app.dependency_overrides[get_user_database] = database
+    app.dependency_overrides[get_public_database] = public_database
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
-        for user_id in (ALEX_ID, BAILEY_ID):
-            routines = await client.get("/api/v1/routines", headers=headers_for(user_id))
-            for routine in routines.json()["data"]:
-                await client.delete(
-                    f"/api/v1/routines/{routine['id']}", headers=headers_for(user_id)
-                )
 
 
 @pytest.fixture

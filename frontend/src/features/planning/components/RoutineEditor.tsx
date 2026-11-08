@@ -22,21 +22,13 @@ import {
 import type { DraftExercise, DraftTargets, RoutineDraft } from '../routine-draft';
 import { ROUTINE_LIMITS } from '../types';
 import { validateRoutineInput } from '../validators';
+import { isSignedOut, ui } from './ui';
 
 const LOAD_LABELS: Record<Exclude<LoadConvention, 'bodyweight'>, string> = {
   total: 'Total kg',
   per_dumbbell: 'Kg per dumbbell',
   machine: 'Machine kg',
 };
-
-const input =
-  'min-h-11 w-full rounded-lg border border-border bg-surface px-3 text-base aria-invalid:border-danger';
-const button =
-  'inline-flex min-h-11 items-center justify-center rounded-lg border border-border px-4 font-semibold hover:border-brand';
-const primaryButton =
-  'inline-flex min-h-11 items-center justify-center rounded-lg bg-brand px-5 font-semibold text-brand-contrast hover:bg-brand-strong disabled:opacity-60';
-const dangerButton =
-  'inline-flex min-h-11 items-center justify-center rounded-lg bg-danger px-5 font-semibold text-background disabled:opacity-60';
 
 /** Errors that have an input to appear beside; the rest show by the Save button. */
 const FIELD_WITH_INPUT = /^(title|exercises\.\d+\.(targetSets|targetReps|targetKg|restSeconds))$/;
@@ -76,7 +68,7 @@ function TargetField({
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
         onChange={(event) => onChange(event.target.value)}
-        className={input}
+        className={ui.input}
       />
       {error ? (
         <p id={`${id}-error`} className="text-sm text-danger">
@@ -159,7 +151,7 @@ function ExerciseRow({
           onClick={() => {
             if (!isFirst) onMove(index - 1);
           }}
-          className={`${button} aria-disabled:opacity-50`}
+          className={`${ui.button} aria-disabled:opacity-50`}
         >
           Up
         </button>
@@ -170,7 +162,7 @@ function ExerciseRow({
           onClick={() => {
             if (!isLast) onMove(index + 1);
           }}
-          className={`${button} aria-disabled:opacity-50`}
+          className={`${ui.button} aria-disabled:opacity-50`}
         >
           Down
         </button>
@@ -178,7 +170,7 @@ function ExerciseRow({
           type="button"
           aria-label={`Remove ${name}`}
           onClick={onRemove}
-          className={`${button} ml-auto text-danger`}
+          className={`${ui.button} ml-auto text-danger`}
         >
           Remove
         </button>
@@ -204,7 +196,7 @@ function ExercisePicker({ onPick, onClose }: { onPick: (exercise: Exercise) => v
           autoFocus
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          className={input}
+          className={ui.input}
         />
       </div>
       {matches.length === 0 ? (
@@ -225,7 +217,7 @@ function ExercisePicker({ onPick, onClose }: { onPick: (exercise: Exercise) => v
           ))}
         </ul>
       )}
-      <button type="button" onClick={onClose} className={`${button} self-start`}>
+      <button type="button" onClick={onClose} className={`${ui.button} self-start`}>
         Done adding
       </button>
     </section>
@@ -322,7 +314,7 @@ function Editor({ initial }: { initial: RoutineDraft }) {
           aria-invalid={titleError ? true : undefined}
           aria-describedby={titleError ? `${titleId}-error` : undefined}
           onChange={(event) => edit({ ...draft, title: event.target.value })}
-          className={input}
+          className={ui.input}
         />
         {titleError ? (
           <p id={`${titleId}-error`} className="text-sm text-danger">
@@ -364,7 +356,7 @@ function Editor({ initial }: { initial: RoutineDraft }) {
             type="button"
             onClick={() => setPicking(true)}
             disabled={draft.exercises.length >= ROUTINE_LIMITS.exercises}
-            className={`${button} self-start disabled:opacity-60`}
+            className={`${ui.button} self-start disabled:opacity-60`}
           >
             Add exercise
           </button>
@@ -381,14 +373,19 @@ function Editor({ initial }: { initial: RoutineDraft }) {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={busy} className={primaryButton}>
+        <button type="submit" disabled={busy} className={ui.primaryButton}>
           {busy ? 'Saving…' : 'Save routine'}
         </button>
+        {draft.id ? (
+          <Link href={`/schedule?routine=${draft.id}`} className={ui.button}>
+            Schedule it
+          </Link>
+        ) : null}
         {draft.id && !confirmingDelete ? (
           <button
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            className={`${button} ml-auto text-danger`}
+            className={`${ui.button} ml-auto text-danger`}
           >
             Delete routine
           </button>
@@ -405,10 +402,10 @@ function Editor({ initial }: { initial: RoutineDraft }) {
             history.
           </p>
           <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={remove} disabled={busy} className={dangerButton}>
+            <button type="button" onClick={remove} disabled={busy} className={ui.dangerButton}>
               Yes, delete it
             </button>
-            <button type="button" autoFocus onClick={() => setConfirmingDelete(false)} className={button}>
+            <button type="button" autoFocus onClick={() => setConfirmingDelete(false)} className={ui.button}>
               Keep routine
             </button>
           </div>
@@ -448,7 +445,7 @@ export function RoutineEditor({
 
   if (loadError) {
     const canRetry = loadError.code !== 'routine_not_found' && loadError.code !== 'invalid_id';
-    const signedOut = ['not_authenticated', 'invalid_session'].includes(loadError.code);
+    const signedOut = isSignedOut(loadError.code);
     return (
       <section role="alert" className="flex flex-col items-start gap-4">
         <h1 className="text-2xl font-bold">
@@ -462,7 +459,7 @@ export function RoutineEditor({
               setLoadError(null);
               setAttempt((value) => value + 1);
             }}
-            className={button}
+            className={ui.button}
           >
             Try again
           </button>

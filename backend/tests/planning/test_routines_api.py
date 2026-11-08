@@ -7,37 +7,17 @@ every request so tests can show that rejected input never reaches the database.
 
 from __future__ import annotations
 
-import json
-from collections.abc import AsyncIterator, Callable
-from typing import Annotated
-
 import httpx
 import pytest
-from fastapi import Depends, FastAPI
-from postgrest import AsyncPostgrestClient
 
-from app.core.auth import AuthenticatedUser, get_current_user
-from app.core.supabase import get_user_database
 from tests.conftest import EXPIRED_TOKEN, bearer, make_token
+from tests.planning.conftest import ROUTINE_ID, FakePostgrest
 
 pytestmark = pytest.mark.anyio
 
 ALEX = bearer(make_token("alex"))
-ROUTINE_ID = "11111111-0000-4000-8000-000000000001"
 BENCH_ID = "e1f17000-0000-4000-8000-000000000001"
 PUSH_UP_ID = "e1f17000-0000-4000-8000-000000000002"
-
-CATALOG = [
-    {"id": BENCH_ID, "name": "Barbell Bench Press", "load_convention": "total"},
-    {"id": PUSH_UP_ID, "name": "Push-Up", "load_convention": "bodyweight"},
-]
-SAVED_ROW = {
-    "id": ROUTINE_ID,
-    "title": "Push day",
-    "updated_at": "2026-11-07T10:00:00+00:00",
-    "routine_exercises": [],
-}
-
 
 def planned(exercise_id: str = BENCH_ID, **overrides: object) -> dict[str, object]:
     return {
@@ -48,63 +28,6 @@ def planned(exercise_id: str = BENCH_ID, **overrides: object) -> dict[str, objec
         "restSeconds": 90,
         **overrides,
     }
-
-
-class FakePostgrest:
-    def __init__(self) -> None:
-        self.requests: list[httpx.Request] = []
-        self.saved_id: str | None = ROUTINE_ID
-        self.routines: list[dict[str, object]] = [SAVED_ROW]
-        self.failure: httpx.Response | None = None
-
-    async def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        if self.failure is not None:
-            return self.failure
-        if request.url.path.endswith("/exercises"):
-            return httpx.Response(200, json=CATALOG)
-        if request.url.path.endswith("/rpc/save_routine"):
-            return httpx.Response(200, content=json.dumps(self.saved_id))
-        return httpx.Response(200, json=self.routines)
-
-    @property
-    def rpc_calls(self) -> list[dict[str, object]]:
-        return [
-            json.loads(request.content)
-            for request in self.requests
-            if request.url.path.endswith("/rpc/save_routine")
-        ]
-
-
-@pytest.fixture
-def postgrest() -> FakePostgrest:
-    return FakePostgrest()
-
-
-@pytest.fixture
-async def api(
-    build_app: Callable[[], FastAPI], postgrest: FakePostgrest
-) -> AsyncIterator[httpx.AsyncClient]:
-    app = build_app()
-
-    # Keeps the real sign-in check, which get_user_database normally brings with it.
-    async def fake_database(
-        _: Annotated[AuthenticatedUser, Depends(get_current_user)],
-    ) -> AsyncIterator[AsyncPostgrestClient]:
-        http_client = httpx.AsyncClient(
-            base_url="http://postgrest.test", transport=httpx.MockTransport(postgrest)
-        )
-        client = AsyncPostgrestClient(
-            "http://postgrest.test", http_client=http_client, retry_enabled=False
-        )
-        yield client
-        await client.aclose()
-
-    app.dependency_overrides[get_user_database] = fake_database
-
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as test_client:
-        yield test_client
 
 
 @pytest.mark.parametrize(
@@ -323,3 +246,14 @@ async def test_database_errors_stay_private(
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "database_unavailable"
     assert "secret" not in response.text
+
+
+async def test_a_token_that_expires_mid_request_asks_to_sign_in_again(
+    api: httpx.AsyncClient, postgrest: FakePostgrest
+) -> None:
+    postgrest.failure = httpx.Response(
+        401, json={"code": "PGRST303", "message": "JWT expired", "details": None, "hint": None}
+    )
+    response = await api.get("/api/v1/routines", headers=ALEX)
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "invalid_session"

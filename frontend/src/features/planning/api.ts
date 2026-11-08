@@ -1,6 +1,6 @@
 import type { Equipment, LoadConvention } from '../catalog';
 import { getAccessToken } from './access-token';
-import type { RoutineInput } from './types';
+import type { RoutineInput, ScheduleInput, ScheduleStatus } from './types';
 
 export interface ApiError {
   code: string;
@@ -41,6 +41,16 @@ export interface Routine {
   exercises: RoutineExercise[];
 }
 
+export interface ScheduledWorkout {
+  id: string;
+  /** Null once the routine has been deleted. */
+  routineId: string | null;
+  /** The routine's current name, or its last name if it was deleted. */
+  routineTitle: string;
+  localDate: string;
+  status: ScheduleStatus;
+}
+
 interface ApiOptions {
   baseUrl: string;
   getToken: () => Promise<string | null>;
@@ -52,19 +62,28 @@ const failure = (code: string, message: string): { data: null; error: ApiError }
   error: { code, message },
 });
 
-export function createRoutinesApi({ baseUrl, getToken, fetcher }: ApiOptions) {
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+
+/** Sends one request to the iFit API and always resolves to `{ data, error }`. */
+export function createApiRequest({ baseUrl, getToken, fetcher }: ApiOptions) {
   const send = fetcher ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
 
-  async function request<T>(method: string, path: string, body?: unknown): Promise<ApiResult<T>> {
-    const token = await getToken();
-    if (!token) return failure('not_authenticated', 'Please sign in to continue.');
+  return async function request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    { signedIn = true, init = {} }: { signedIn?: boolean; init?: RequestInit } = {},
+  ): Promise<ApiResult<T>> {
+    const token = signedIn ? await getToken() : null;
+    if (signedIn && !token) return failure('not_authenticated', 'Please sign in to continue.');
 
     let response: Response;
     try {
       response = await send(`${baseUrl}/api/v1${path}`, {
+        ...init,
         method,
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -81,22 +100,45 @@ export function createRoutinesApi({ baseUrl, getToken, fetcher }: ApiOptions) {
     } catch {
       return failure('request_failed', 'Something went wrong. Please try again.');
     }
-  }
-
-  return {
-    listRoutines: () => request<RoutineSummary[]>('GET', '/routines'),
-    getRoutine: (id: string) => request<Routine>('GET', `/routines/${encodeURIComponent(id)}`),
-    /** Creates the routine, or updates it when the input has an ID. */
-    saveRoutine: (input: RoutineInput) =>
-      input.id
-        ? request<Routine>('PUT', `/routines/${encodeURIComponent(input.id)}`, input)
-        : request<Routine>('POST', '/routines', input),
-    deleteRoutine: (id: string) =>
-      request<{ id: string }>('DELETE', `/routines/${encodeURIComponent(id)}`),
   };
 }
 
-export const routinesApi = createRoutinesApi({
-  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000',
-  getToken: getAccessToken,
-});
+const path = (id: string) => encodeURIComponent(id);
+
+export function createRoutinesApi(options: ApiOptions) {
+  const request = createApiRequest(options);
+  return {
+    listRoutines: () => request<RoutineSummary[]>('GET', '/routines'),
+    getRoutine: (id: string) => request<Routine>('GET', `/routines/${path(id)}`),
+    /** Creates the routine, or updates it when the input has an ID. */
+    saveRoutine: (input: RoutineInput) =>
+      input.id
+        ? request<Routine>('PUT', `/routines/${path(input.id)}`, input)
+        : request<Routine>('POST', '/routines', input),
+    deleteRoutine: (id: string) => request<{ id: string }>('DELETE', `/routines/${path(id)}`),
+  };
+}
+
+export function createScheduleApi(options: ApiOptions) {
+  const request = createApiRequest(options);
+
+  return {
+    listSchedule: (range: { from?: string; to?: string } = {}) => {
+      const query = new URLSearchParams(
+        Object.entries(range).filter((entry): entry is [string, string] => Boolean(entry[1])),
+      ).toString();
+      return request<ScheduledWorkout[]>('GET', `/schedule${query ? `?${query}` : ''}`);
+    },
+    scheduleRoutine: (input: ScheduleInput) =>
+      request<ScheduledWorkout>('POST', '/schedule', input),
+    rescheduleWorkout: (id: string, localDate: string) =>
+      request<ScheduledWorkout>('PATCH', `/schedule/${path(id)}`, { localDate }),
+    cancelScheduledWorkout: (id: string) =>
+      request<ScheduledWorkout>('POST', `/schedule/${path(id)}/cancel`),
+  };
+}
+
+const signedIn = { baseUrl: API_BASE_URL, getToken: getAccessToken };
+
+export const routinesApi = createRoutinesApi(signedIn);
+export const scheduleApi = createScheduleApi(signedIn);

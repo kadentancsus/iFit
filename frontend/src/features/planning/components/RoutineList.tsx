@@ -99,6 +99,14 @@ export function RoutineList() {
           </Link>
         </div>
         <SavedRoutines result={result} onRetry={retry} />
+        <nav aria-label="Planning" className="flex flex-wrap gap-x-6">
+          <Link href="/schedule" className="flex min-h-11 items-center text-brand">
+            Your schedule
+          </Link>
+          <Link href="/exercises" className="flex min-h-11 items-center text-brand">
+            Browse exercises
+          </Link>
+        </nav>
       </section>
 
       <section aria-labelledby="templates-title" className="flex flex-col gap-3">

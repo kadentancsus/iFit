@@ -7,16 +7,14 @@ than forbidden, which also avoids confirming that its ID exists.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Mapping
 from typing import Any
 
-import httpx
 from postgrest import AsyncPostgrestClient
-from postgrest.exceptions import APIError
 
 from app.core.responses import ApiError
 
+from .database import run as _rows
 from .schemas import (
     ROUTINE_MAX_EXERCISES,
     DeletedRoutine,
@@ -27,8 +25,6 @@ from .schemas import (
     RoutineSummary,
 )
 from .validators import is_uuid, validate_routine_input
-
-logger = logging.getLogger("ifit.api")
 
 _ROUTINE_DETAIL_COLUMNS = (
     "id,title,updated_at,"
@@ -44,20 +40,6 @@ def _routine_not_found() -> ApiError:
 def _require_uuid(value: str) -> None:
     if not is_uuid(value):
         raise ApiError(422, "invalid_id", "That request has an invalid ID.", field="id")
-
-
-async def _rows(query: Any) -> Any:
-    """Runs a query, reporting database trouble without exposing its details."""
-    try:
-        response = await query.execute()
-    except (APIError, httpx.HTTPError) as error:
-        logger.warning("Planning query failed: %r", error)
-        raise ApiError(
-            503,
-            "database_unavailable",
-            "We couldn't reach your routines. Nothing was saved; please try again.",
-        ) from None
-    return response.data
 
 
 def _to_detail(row: Mapping[str, Any]) -> RoutineDetail:

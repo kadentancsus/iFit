@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createRoutinesApi } from './api';
+import { createCatalogApi } from '../catalog/api';
+import { createRoutinesApi, createScheduleApi } from './api';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -88,5 +89,46 @@ describe('routines API client', () => {
     const fetcher = vi.fn<typeof fetch>(async () => new Response('<html>', { status: 502 }));
 
     expect((await apiWith(fetcher).listRoutines()).error?.code).toBe('request_failed');
+  });
+});
+
+describe('schedule API client', () => {
+  it('lists a date range', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => json(200, { data: [], error: null }));
+
+    await createScheduleApi({ baseUrl: 'http://api.test', getToken: async () => 't', fetcher })
+      .listSchedule({ from: '2026-11-01', to: undefined });
+
+    expect(fetcher.mock.calls[0]![0]).toBe('http://api.test/api/v1/schedule?from=2026-11-01');
+  });
+
+  it('reschedules and cancels by ID', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => json(200, { data: {}, error: null }));
+    const api = createScheduleApi({ baseUrl: 'http://api.test', getToken: async () => 't', fetcher });
+
+    await api.rescheduleWorkout('abc', '2026-11-20');
+    await api.cancelScheduledWorkout('abc');
+
+    expect(fetcher.mock.calls.map(([url, init]) => [init?.method, url, init?.body])).toEqual([
+      ['PATCH', 'http://api.test/api/v1/schedule/abc', '{"localDate":"2026-11-20"}'],
+      ['POST', 'http://api.test/api/v1/schedule/abc/cancel', undefined],
+    ]);
+  });
+});
+
+describe('catalog API client', () => {
+  it('never sends a token and skips empty filters', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => json(200, { data: [], error: null }));
+
+    await createCatalogApi({ baseUrl: 'http://api.test', fetcher }).listExercises({
+      search: 'squat',
+      equipment: undefined,
+      pattern: 'squat',
+    });
+
+    const [url, init] = fetcher.mock.calls[0]!;
+    expect(url).toBe('http://api.test/api/v1/exercises?search=squat&pattern=squat');
+    expect(init?.headers).not.toHaveProperty('Authorization');
+    expect(init?.cache).toBe('no-store');
   });
 });

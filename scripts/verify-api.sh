@@ -93,4 +93,5 @@ curl -fsS "$url/exercises?limit=1" >/dev/null || {
 }
 
 IFIT_TEST_POSTGREST_URL="$url" IFIT_TEST_JWT_SECRET="$JWT_SECRET" \
+  IFIT_TEST_DATABASE_CONTAINER="$DATABASE" \
   "$PYTHON" -m pytest backend/tests/integration "$@"

@@ -29,6 +29,21 @@ LoadConvention = Literal["total", "per_dumbbell", "machine", "bodyweight"]
 
 # Matches the equipment CHECK in 0002_planning.sql.
 Equipment = Literal["barbell", "dumbbell", "machine", "cable", "bodyweight"]
+MovementPattern = Literal["push", "pull", "squat", "hinge", "core"]
+# Matches MUSCLES in frontend/src/features/catalog/types.ts.
+Muscle = Literal[
+    "chest",
+    "shoulders",
+    "triceps",
+    "lats",
+    "upper back",
+    "biceps",
+    "quads",
+    "glutes",
+    "hamstrings",
+    "core",
+    "lower back",
+]
 
 PlanningErrorCode = Literal[
     "invalid_input",
@@ -123,6 +138,40 @@ class RoutineDetail(CamelModel):
 
 class DeletedRoutine(CamelModel):
     id: str
+
+
+class ScheduledWorkout(CamelModel):
+    id: str
+    #: None once the routine has been deleted.
+    routine_id: str | None
+    #: The routine's current name, or its last name if it was deleted.
+    routine_title: str
+    local_date: str
+    status: ScheduleStatus
+
+
+class ExerciseSummary(CamelModel):
+    id: str
+    slug: str
+    name: str
+    pattern: MovementPattern
+    primary_muscles: tuple[Muscle, ...]
+    secondary_muscles: tuple[Muscle, ...]
+    equipment: Equipment
+    load_convention: LoadConvention
+    difficulty: int
+    summary: str
+    asset_path: str
+    asset_alt: str
+
+
+class ExerciseDetail(ExerciseSummary):
+    instructions: tuple[str, ...]
+    #: Exactly three, short enough to read between sets.
+    cues: tuple[str, ...]
+    mistakes: tuple[str, ...]
+    #: Looping demonstration. Show asset_path instead when motion is reduced.
+    motion_asset_path: str
 
 
 class PlanningError(CamelModel):
