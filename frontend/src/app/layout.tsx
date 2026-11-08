@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { AppNav, AppProfileLink } from "@/components/navigation/app-nav";
+import { SupabaseConfigError } from "@/lib/supabase/env";
+import { getSignedInUser } from "@/lib/supabase/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,7 +25,18 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+async function currentUser() {
+  try {
+    return await getSignedInUser();
+  } catch (error) {
+    // Missing settings are reported by the proxy; render the signed-out shell.
+    if (error instanceof SupabaseConfigError) return null;
+    throw error;
+  }
+}
+
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const user = await currentUser();
   return (
     <html lang="en" className="h-full antialiased">
       <body className="flex min-h-full flex-col">
@@ -41,13 +55,24 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             >
               iFit
             </Link>
-            <AppNav />
-            <AppProfileLink />
+            {user ? (
+              <>
+                <AppNav />
+                <div className="flex items-center gap-1">
+                  <AppProfileLink />
+                  <SignOutButton />
+                </div>
+              </>
+            ) : null}
           </div>
         </header>
         <main
           id="main"
-          className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pt-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6"
+          className={
+            user
+              ? "mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pt-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6"
+              : "mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-6"
+          }
         >
           {children}
         </main>
