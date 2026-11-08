@@ -11,6 +11,9 @@ import { formatLocalDate, formatTime, localDateIn, relativeDayLabel } from '@/li
 
 import { identityApi } from '../api';
 import { progressTiles, sessionDetails, sessionStatusLabel } from '../dashboard-view';
+import { workoutPath } from '../start-workout';
+
+import { StartWorkoutButton } from './StartWorkoutButton';
 
 const api = identityApi();
 
@@ -26,16 +29,34 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function PlanList({ plans, today }: { plans: ScheduledWorkout[]; today: string }) {
+function PlanList({
+  plans,
+  today,
+  canStart = false,
+}: {
+  plans: ScheduledWorkout[];
+  today: string;
+  /** Show Start on planned rows (today's list, with no workout already running). */
+  canStart?: boolean;
+}) {
   return (
     <ul className="flex flex-col gap-2">
       {plans.map((plan) => (
         <li key={plan.id}>
           <Card className="flex items-center justify-between gap-3">
-            <span className="font-semibold">{plan.routineTitle}</span>
-            <span className="text-sm text-muted">
-              {plan.status === 'completed' ? 'Done' : relativeDayLabel(plan.localDate, today)}
+            <span className="flex min-w-0 flex-col">
+              <span className="font-semibold">{plan.routineTitle}</span>
+              <span className="text-sm text-muted">
+                {plan.status === 'completed' ? 'Done' : relativeDayLabel(plan.localDate, today)}
+              </span>
             </span>
+            {canStart && plan.status === 'planned' ? (
+              plan.routineId ? (
+                <StartWorkoutButton plan={{ ...plan, routineId: plan.routineId }} />
+              ) : (
+                <span className="text-sm text-muted">Routine was deleted</span>
+              )
+            ) : null}
           </Card>
         </li>
       ))}
@@ -53,15 +74,35 @@ export function DashboardContent({ data }: { data: Dashboard }) {
       <PageHeader title={`Hi, ${profile.displayName}`} description={formatLocalDate(today, 'long')} />
 
       {data.activeWorkout ? (
-        <Alert tone="info" title="Workout in progress">
-          {data.activeWorkout.routineNameSnapshot}, started at{' '}
-          {formatTime(data.activeWorkout.startedAt, profile.timezone)}.
-        </Alert>
+        <Card className="flex flex-wrap items-center justify-between gap-3 border-brand">
+          <span className="flex flex-col">
+            <span className="font-semibold">Workout in progress</span>
+            <span className="text-sm text-muted">
+              {data.activeWorkout.routineNameSnapshot}, started at{' '}
+              {formatTime(data.activeWorkout.startedAt, profile.timezone)}
+            </span>
+          </span>
+          <Link href={workoutPath(data.activeWorkout.id)} className={buttonClasses('primary')}>
+            Resume workout
+          </Link>
+        </Card>
       ) : null}
 
       <Section title="Today">
         {data.todaysWorkouts.length ? (
-          <PlanList plans={data.todaysWorkouts} today={today} />
+          <>
+            <PlanList
+              plans={data.todaysWorkouts}
+              today={today}
+              canStart={!data.activeWorkout}
+            />
+            {data.activeWorkout &&
+            data.todaysWorkouts.some((plan) => plan.status === 'planned') ? (
+              <p className="text-sm text-muted">
+                Finish or resume your current workout before starting another.
+              </p>
+            ) : null}
+          </>
         ) : (
           <EmptyState
             title="Nothing planned today"
