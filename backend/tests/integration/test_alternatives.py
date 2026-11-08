@@ -14,7 +14,7 @@ BENCH = "e1f17000-0000-4000-8000-000000000001"
 
 
 async def alternatives(
-    api: httpx.AsyncClient, exercise: str, headers: Headers | None = None, **params: str
+    api: httpx.AsyncClient, exercise: str, *, headers: Headers | None = None, **params: str
 ) -> httpx.Response:
     return await api.get(
         f"/api/v1/exercises/{exercise}/alternatives", params=params, headers=headers or {}
@@ -110,12 +110,13 @@ async def test_no_match_is_an_empty_list(api: httpx.AsyncClient) -> None:
 async def test_rejects_bad_requests(
     api: httpx.AsyncClient, exercise: str, params: dict[str, str], status: int
 ) -> None:
-    assert (await alternatives(api, exercise, **params)).status_code == status
+    response = await api.get(f"/api/v1/exercises/{exercise}/alternatives", params=params)
+    assert response.status_code == status
 
 
 async def test_an_invalid_token_is_rejected_not_ignored(api: httpx.AsyncClient) -> None:
     response = await alternatives(
-        api, "barbell-bench-press", {"Authorization": "Bearer nope"}, kind="substitution"
+        api, "barbell-bench-press", headers={"Authorization": "Bearer nope"}, kind="substitution"
     )
     assert response.status_code == 401
 
@@ -138,12 +139,12 @@ async def test_prefills_only_from_the_users_own_history_of_that_exercise(
 
     mine = {
         option["exercise"]["slug"]: option["lastPerformance"]
-        for option in (await alternatives(api, BENCH, alex, kind="substitution")).json()["data"]
+        for option in (await alternatives(api, BENCH, headers=alex, kind="substitution")).json()["data"]
     }
     assert mine["dumbbell-flat-bench-press"]["weightKg"] == 22.5
     assert mine["dumbbell-flat-bench-press"]["reps"] == 10
     assert mine["push-up"]["loadMode"] == "bodyweight"
     assert mine["chest-press-machine"] is None
 
-    theirs = (await alternatives(api, BENCH, bailey, kind="substitution")).json()["data"]
+    theirs = (await alternatives(api, BENCH, headers=bailey, kind="substitution")).json()["data"]
     assert all(option["lastPerformance"] is None for option in theirs)

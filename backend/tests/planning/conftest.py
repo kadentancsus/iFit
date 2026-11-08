@@ -26,7 +26,7 @@ CATALOG = [
     {"id": BENCH_ID, "name": "Barbell Bench Press", "load_convention": "total"},
     {"id": PUSH_UP_ID, "name": "Push-Up", "load_convention": "bodyweight"},
 ]
-SAVED_ROW = {
+SAVED_ROW: dict[str, object] = {
     "id": ROUTINE_ID,
     "owner_id": "aaaaaaaa-0000-4000-8000-000000000001",
     "title": "Push day",

@@ -97,7 +97,8 @@ class TestPersistence:
         self, api: httpx.AsyncClient, alex: Headers
     ) -> None:
         routine = await create(api, alex, "Push day", BENCH, INCLINE, FLAT_DUMBBELL)
-        first, second, third = routine["exercises"]  # type: ignore[misc]
+        rows: list[dict[str, object]] = routine["exercises"]  # type: ignore[assignment]
+        first, second, third = rows
 
         def resend(row: dict[str, object], **overrides: object) -> dict[str, object]:
             return {**planned(str(row["exerciseId"])), "id": row["id"], **overrides}
