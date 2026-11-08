@@ -46,6 +46,11 @@ for _ in $(seq 1 60); do
 done
 [ "$ready" -ge 3 ] || { echo 'Postgres did not become ready'; exit 1; }
 
+# Match a real Supabase project's auth.uid(); see the file for why.
+docker exec -i -e PGPASSWORD=verify "$CONTAINER" \
+  psql -X -q -v ON_ERROR_STOP=1 -U supabase_admin -h 127.0.0.1 -d postgres \
+  < scripts/sql/supabase-auth-uid.sql
+
 shopt -s nullglob
 
 for migration in supabase/migrations/*.sql; do

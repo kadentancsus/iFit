@@ -57,3 +57,28 @@ async def test_blocks_other_origins(client: httpx.AsyncClient) -> None:
 async def test_openapi_describes_the_api(client: httpx.AsyncClient) -> None:
     schema = (await client.get("/openapi.json")).json()
     assert {"/api/v1/health", "/api/v1/session"} <= set(schema["paths"])
+
+
+
+
+@pytest.mark.parametrize("feature", ["identity", "planning", "workout"])
+def test_every_feature_router_is_mounted(feature: str) -> None:
+    """A router that isn't included in the app silently serves 404s."""
+    import importlib
+
+    from fastapi import FastAPI
+
+    from app.main import create_app
+
+    def endpoints(app: FastAPI) -> set[tuple[str, str]]:
+        return {
+            (method, path)
+            for path, operations in app.openapi()["paths"].items()
+            for method in operations
+        }
+
+    alone = FastAPI()
+    alone.include_router(importlib.import_module(f"app.features.{feature}.router").router, prefix="/api/v1")
+    expected = endpoints(alone)
+    assert expected
+    assert expected <= endpoints(create_app())

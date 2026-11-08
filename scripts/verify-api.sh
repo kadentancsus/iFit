@@ -54,19 +54,13 @@ for migration in supabase/migrations/*.sql; do
   run_psql < "$migration"
 done
 run_psql < supabase/seed.sql
-# Needs the image's superuser. authenticator is a reserved role, and the image's
-# auth.uid() predates request.jwt.claims: on a real project the Auth service's
-# migrations install this version, but no Auth service runs here.
-docker exec -i -e PGPASSWORD=verify "$DATABASE" psql -X -q -v ON_ERROR_STOP=1 \
-  -U supabase_admin -h 127.0.0.1 -d postgres <<'SQL'
-alter role authenticator with password 'verify';
-create or replace function auth.uid() returns uuid language sql stable as $$
-  select coalesce(
-    nullif(current_setting('request.jwt.claim.sub', true), ''),
-    (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')
-  )::uuid;
-$$;
-SQL
+# Needs the image's superuser: authenticator is a reserved role.
+run_superuser() {
+  docker exec -i -e PGPASSWORD=verify "$DATABASE" \
+    psql -X -q -v ON_ERROR_STOP=1 -U supabase_admin -h 127.0.0.1 -d postgres "$@"
+}
+run_superuser -c "alter role authenticator with password 'verify'"
+run_superuser < scripts/sql/supabase-auth-uid.sql
 run_psql <<'SQL'
 insert into auth.users (id, email) values
   ('aaaaaaaa-0000-4000-8000-00000000f001', 'alex@ifit.test'),
